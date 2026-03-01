@@ -1,0 +1,5 @@
+{
+  "name": "RG7 ERP Administrativo",
+  "description": "Sistema ERP de alto nivel para autopartes con integración fiscal SAINT, gestión multi-almacén, métricas de lead-time y doble contabilidad (Fiscal/Operativa).",
+  "requestFramePermissions": []
+}
