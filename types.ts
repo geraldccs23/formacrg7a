@@ -77,3 +77,160 @@ export interface SyncLog {
   lastError?: string;
   createdAt: string;
 }
+
+export interface CasheaInstallment {
+  id: number;
+  income_id: number;
+  installment_number: number;
+  amount_usd: number;
+  status: 'pending' | 'paid';
+  due_date?: string;
+  created_at: string;
+  paid_at?: string;
+}
+
+export interface Seller {
+  id: number;
+  name: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface Courier {
+  id: number;
+  name: string;
+  phone?: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface Bank {
+  code: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface BankAccount {
+  id: number;
+  bank_code: string;
+  reference: string;
+  payment_types: string[];
+  balance: number;
+  sucursal: BranchType;
+  created_at?: string;
+}
+
+export interface BankInitialBalance {
+  id: number;
+  bank_account_id: number;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+  bank_accounts?: BankAccount; // For joins
+}
+
+export type PaymentCondition = 'Contado' | 'Inicial de Cashea' | 'Credito';
+export type BranchType = 'Boleita' | 'Sabana Grande';
+
+export interface Income {
+  id: number;
+  branch: BranchType;
+  document_type: string;
+  document_number: string;
+  payment_condition: PaymentCondition;
+  customer_id?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  total_amount: number;
+  seller_id?: number;
+  delivery_method?: string;
+  courier_id?: number;
+  cash_register?: string;
+  shipping_agency?: string;
+  created_at: string;
+}
+
+export interface IncomePayment {
+  id: number;
+  income_id: number;
+  payment_type: string;
+  amount: number;
+  exchange_rate?: number;
+  amount_bs?: number;
+  bank_account_id?: number;
+  created_at: string;
+}
+
+export interface ExpenseRecipient {
+  id: number;
+  type: string;
+  name: string;
+  document_id?: string;
+  phone?: string;
+  created_at: string;
+}
+
+export interface Expense {
+  id: number;
+  branch: BranchType;
+  recipient_id: number;
+  concept: string;
+  payment_type: string;
+  bank_account_id?: number;
+  amount: number;
+  exchange_rate?: number;
+  amount_bs?: number;
+  created_at: string;
+}
+
+export interface BankTransfer {
+  id: number;
+  from_account_id: number;
+  to_account_id: number;
+  amount: number;
+  reference?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  numero_orden: string;
+  supplier_code?: string;
+  provider_name?: string; // We'll join this or store it in a view
+  status: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'CANCELLED';
+  total_amount_usd: number;
+  notes?: string;
+  created_at: string;
+  sucursal: BranchType;
+  items?: PurchaseOrderLine[];
+}
+
+export interface PurchaseOrderLine {
+  id: number;
+  order_id: number;
+  codigo_producto: string;
+  description?: string;
+  cantidad_pedida: number;
+  cantidad_recibida: number;
+  precio_unitario_usd: number;
+  total_linea_usd: number;
+}
+
+
+export interface SupportTicket {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: 'bug' | 'feature_request' | 'support' | 'other';
+  user_id: string;
+  assigned_to?: string;
+  branch?: string;
+  created_at: string;
+  updated_at: string;
+  creator_email?: string;
+  assigned_email?: string;
+}

@@ -15,12 +15,12 @@ export const mockSuppliers: Supplier[] = [
 ];
 
 export const mockPurchaseLines: PurchaseLine[] = [
-  { id: 'oc-001', proveedor_codigo: 's1', proveedor_nombre: 'Importadora Automotriz CA', numero_documento: 'OC-001', fecha_hora: '2023-11-01', codigo_producto: 'TOY-FIL-001', descripcion: 'Filtro de Aceite Toyota', cantidad: 10, costo_usd: 125.00, tipo_documento: 'ORDEN' },
-  { id: 'oc-002', proveedor_codigo: 's2', proveedor_nombre: 'Ford Motors de Venezuela', numero_documento: 'OC-002', fecha_hora: '2023-10-15', codigo_producto: 'FOR-BRA-005', descripcion: 'Pastillas de Freno F-150', cantidad: 20, costo_usd: 840.00, tipo_documento: 'COMPRA' }
+  { id: 'oc-001', fuente: 'MOCK', sucursal: 'Boleita', proveedor_codigo: 's1', proveedor_nombre: 'Importadora Automotriz CA', numero_documento: 'OC-001', fecha_hora: '2023-11-01', codigo_producto: 'TOY-FIL-001', descripcion: 'Filtro de Aceite Toyota', cantidad: 10, costo_usd: 125.00, tipo_documento: 'ORDEN' },
+  { id: 'oc-002', fuente: 'MOCK', sucursal: 'Boleita', proveedor_codigo: 's2', proveedor_nombre: 'Ford Motors de Venezuela', numero_documento: 'OC-002', fecha_hora: '2023-10-15', codigo_producto: 'FOR-BRA-005', descripcion: 'Pastillas de Freno F-150', cantidad: 20, costo_usd: 840.00, tipo_documento: 'COMPRA' }
 ];
 
 export const mockSalesLines: SalesLine[] = [
-  { id: 'ne-001', numero_documento: 'NE-001', fecha_hora: '2023-11-10', nombre_cliente: 'Taller Perez', codigo_producto: 'TOY-FIL-001', descripcion: 'Filtro de Aceite Toyota', cantidad: 2, total_usd: 30.00, tipo_documento: 'NOTA_ENTREGA' }
+  { id: 'ne-001', fuente: 'MOCK', sucursal: 'Boleita', numero_documento: 'NE-001', fecha_hora: '2023-11-10', nombre_cliente: 'Taller Perez', codigo_producto: 'TOY-FIL-001', descripcion: 'Filtro de Aceite Toyota', cantidad: 2, total_usd: 30.00, tipo_documento: 'NOTA_ENTREGA' }
 ];
 
 export const mockSyncLogs: SyncLog[] = [

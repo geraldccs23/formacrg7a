@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../services/dbService';
 import { SyncLog } from '../types';
-import { AlertTriangle, TrendingUp, AlertCircle, RefreshCw, Package, ShoppingCart, ArrowUpRight, Target } from 'lucide-react';
+import { AlertTriangle, TrendingUp, AlertCircle, RefreshCw, Package, ShoppingCart, ArrowUpRight, Target, Wallet } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
@@ -81,9 +81,9 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatCard title="Ventas Hoy (NE)" value={`$${metrics.totalToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue={`${metrics.totalCountToday} Transacciones`} icon={TrendingUp} color="bg-blue-600" />
-        <StatCard title="Stock Crítico" value={metrics.criticalCount.toString()} subValue="SKUs bajo mínimo" icon={AlertCircle} color="bg-[#D40000]" />
-        <StatCard title="Cola SAINT" value={syncLogs.filter(l => l.status === 'PENDING').length.toString()} subValue="Eventos Pendientes" icon={RefreshCw} color="bg-orange-500" />
-        <StatCard title="Fill Rate Est." value="98.2%" subValue="Eficiencia de Surtido" icon={Target} color="bg-emerald-600" />
+        <StatCard title="Compras Hoy (SAINT)" value={`$${metrics.totalPurchasesToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Entradas de Mercancía" icon={ShoppingCart} color="bg-orange-600" />
+        <StatCard title="Total en Ordenes" value={`$${metrics.totalPendingPOs.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Pedidos Pendientes" icon={Target} color="bg-indigo-600" />
+        <StatCard title="Cierre de Caja Hoy" value={`$${metrics.totalIncomeToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Ingresos Totales (Cajas)" icon={Wallet} color="bg-emerald-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">

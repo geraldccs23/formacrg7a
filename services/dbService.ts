@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, Supplier, PurchaseLine, SalesLine, SyncLog } from '../types';
+import { Product, Supplier, PurchaseLine, SalesLine, SyncLog, Seller, Courier, CasheaInstallment, BankTransfer, SupportTicket } from '../types';
 
 export const dbService = {
   // Products with calculated stock (DEPRECATED - Use getLatestStock for snapshot-based stock)
@@ -404,6 +404,7 @@ export const dbService = {
     const lookback = 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - lookback);
+    const today = new Date().toISOString().split('T')[0];
 
     // 1. Critical Stock Count
     const { data: stockData } = await supabase
@@ -433,7 +434,6 @@ export const dbService = {
       .slice(0, 5);
 
     // 3. Sales Today (NE)
-    const today = new Date().toISOString().split('T')[0];
     const { data: todaySales } = await supabase
       .from('v_sales_lines')
       .select('total_usd')
@@ -442,11 +442,36 @@ export const dbService = {
 
     const totalToday = todaySales?.reduce((acc, s) => acc + Number(s.total_usd), 0) || 0;
 
+    // 4. Purchases (Saint)
+    const { data: recentPurchases } = await supabase
+      .from('purchase_lines')
+      .select('costo_usd')
+      .eq('sucursal', dbBranch)
+      .gte('fecha_hora', today);
+    const totalPurchasesToday = recentPurchases?.reduce((acc, p) => acc + Number(p.costo_usd), 0) || 0;
+
+    // 5. Purchase Orders (Internal)
+    const { data: pendingPOs } = await supabase
+      .from('purchase_orders')
+      .select('total_amount_usd')
+      .eq('status', 'PENDING');
+    const totalPendingPOs = pendingPOs?.reduce((acc, o) => acc + Number(o.total_amount_usd || 0), 0) || 0;
+
+    // 6. Cashier closing (Income Today)
+    const { data: incomeToday } = await supabase
+      .from('incomes')
+      .select('total_amount')
+      .gte('created_at', today);
+    const totalIncomeToday = incomeToday?.reduce((acc, i) => acc + Number(i.total_amount), 0) || 0;
+
     return {
       criticalCount,
       topProducts,
       totalToday,
-      totalCountToday: todaySales?.length || 0
+      totalCountToday: todaySales?.length || 0,
+      totalPurchasesToday,
+      totalPendingPOs,
+      totalIncomeToday
     };
   },
 
@@ -471,5 +496,197 @@ export const dbService = {
       lastError: log.last_error,
       createdAt: log.created_at
     }));
+  },
+
+  // Get Latest Exchange Rate from Dolar API with DB fallback
+  async getLatestExchangeRate(): Promise<number> {
+    try {
+      // Try Dolar API first (Official rate for Venezuela)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+      const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.promedio) {
+          return Number(data.promedio);
+        }
+      }
+    } catch (e) {
+      console.warn('Dolar API fetch failed, falling back to DB rate:', e);
+    }
+
+    // Fallback to database rate
+    try {
+      const { data, error } = await supabase
+        .from('stock_snapshot_lines')
+        .select('tasa_ref')
+        .gt('tasa_ref', 0)
+        .order('id', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+      return data && data.length > 0 ? Number(data[0].tasa_ref) : 1;
+    } catch (e) {
+      console.error('Error fetching exchange rate from DB:', e);
+      return 1; // absolute fallback
+    }
+  },
+
+  // Sellers
+  async getSellers(): Promise<Seller[]> {
+    const { data, error } = await supabase
+      .from('sellers')
+      .select('*')
+      .eq('active', true)
+      .order('name');
+    if (error) {
+      console.error('Error in getSellers:', error);
+      throw error;
+    }
+    return data || [];
+  },
+
+  // Couriers
+  async getCouriers(): Promise<Courier[]> {
+    const { data, error } = await supabase
+      .from('couriers')
+      .select('*')
+      .eq('active', true)
+      .order('name');
+    if (error) {
+      console.error('Error in getCouriers:', error);
+      throw error;
+    }
+    return data || [];
+  },
+
+  async createCourier(name: string, phone?: string): Promise<Courier> {
+    const { data, error } = await supabase
+      .from('couriers')
+      .insert([{ name, phone }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // Cashea
+  async getPendingCasheaInstallments(): Promise<(CasheaInstallment & { incomes: { customer_name: string, customer_id: string, branch: string } })[]> {
+    const { data, error } = await supabase
+      .from('cashea_installments')
+      .select('*, incomes(customer_name, customer_id, branch)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data as any;
+  },
+
+  async markCasheaInstallmentAsPaid(id: number): Promise<void> {
+    const { error } = await supabase
+      .from('cashea_installments')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  // Customers
+  async getCustomerById(id: string) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async upsertCustomer(customer: { id: string, name: string, phone?: string }) {
+    const { error } = await supabase
+      .from('customers')
+      .upsert(customer);
+    if (error) throw error;
+  },
+
+  async getCustomers() {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*, incomes(total_amount), cashea_installments(amount_usd, status)')
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+
+  // Bank Transfers (NUEVO COMIENZO v4 - Bypassing persistent cache)
+  async getBankTransfers(): Promise<(BankTransfer & { from: any, to: any })[]> {
+    const { data, error } = await supabase
+      .from('v_transferencias_final_v4')
+      .select('*');
+    if (error) throw error;
+    return data as any;
+  },
+
+  async createBankTransfer(transfer: Omit<BankTransfer, 'id' | 'created_at'>): Promise<BankTransfer> {
+    const { data, error } = await supabase
+      .from('transferencias_internas_v4')
+      .insert([{
+        from_account_id: transfer.from_account_id,
+        to_account_id: transfer.to_account_id,
+        amount: transfer.amount,
+        reference: transfer.reference,
+        notes: transfer.notes
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data as any;
+  },
+
+  // Support Tickets
+  async getSupportTickets(): Promise<SupportTicket[]> {
+    const { data, error } = await supabase
+      .from('v_support_tickets')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createSupportTicket(ticket: Partial<SupportTicket>): Promise<SupportTicket> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .insert([{
+        title: ticket.title,
+        description: ticket.description,
+        status: ticket.status || 'open',
+        priority: ticket.priority || 'medium',
+        category: ticket.category || 'support',
+        user_id: user.id,
+        branch: ticket.branch
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateSupportTicket(id: string, updates: Partial<SupportTicket>): Promise<void> {
+    const { error } = await supabase
+      .from('support_tickets')
+      .update({
+        status: updates.status,
+        priority: updates.priority,
+        assigned_to: updates.assigned_to,
+        description: updates.description
+      })
+      .eq('id', id);
+    if (error) throw error;
   }
 };
