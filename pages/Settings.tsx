@@ -133,13 +133,15 @@ export function Settings() {
                              ${user.role === 'director' ? 'bg-red-50 border-red-200 text-red-700 focus:ring-red-500/20' :
                                                         user.role === 'supervisor' ? 'bg-blue-50 border-blue-200 text-blue-700 focus:ring-blue-500/20' :
                                                             user.role === 'vendedor' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 focus:ring-indigo-500/20' :
-                                                                user.role === 'compras' ? 'bg-orange-50 border-orange-200 text-orange-700 focus:ring-orange-500/20' :
+                                                                 user.role === 'compras' ? 'bg-orange-50 border-orange-200 text-orange-700 focus:ring-orange-500/20' :
+                                                                user.role === 'soporte' ? 'bg-purple-50 border-purple-200 text-purple-700 focus:ring-purple-500/20' :
                                                             'bg-emerald-50 border-emerald-200 text-emerald-700 focus:ring-emerald-500/20'
                                                     } ${(updatingId === user.user_id || user.user_id === currentUserId) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <option value="vendedor">Vendedor (Inventario / Ingresos)</option>
                                                 <option value="compras">Compras (Inventario / Compras / FORDMAC)</option>
                                                 <option value="cajero">Cajero (Ingresos / Inventario)</option>
+                                                <option value="soporte">Soporte (Inventario / Soporte Técnico)</option>
                                                 <option value="supervisor">Supervisor (Control de Flujo / Inventario)</option>
                                                 <option value="director">Director (Control Absoluto)</option>
                                             </select>

@@ -43,14 +43,15 @@ import { CashierClosing } from './pages/CashierClosing';
 import { Support } from './pages/Support';
 
 type View = 'dashboard' | 'inventory' | 'suppliers' | 'sales' | 'purchases' | 'sync' | 'settings' | 'fordmac' | 'income' | 'expenses' | 'banks' | 'admin_dashboard' | 'cashea' | 'customers' | 'internal_transfers' | 'purchase_orders' | 'cashier_closing' | 'support';
-export type Role = 'director' | 'supervisor' | 'cajero' | 'vendedor' | 'compras';
+export type Role = 'director' | 'supervisor' | 'cajero' | 'vendedor' | 'compras' | 'soporte';
 
 const rolePermissions: Record<Role, View[]> = {
   director: ['dashboard', 'inventory', 'suppliers', 'sales', 'purchases', 'sync', 'settings', 'fordmac', 'income', 'expenses', 'banks', 'admin_dashboard', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support'],
   supervisor: ['dashboard', 'inventory', 'suppliers', 'purchases', 'admin_dashboard', 'income', 'expenses', 'banks', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support'],
   cajero: ['inventory', 'income', 'cashier_closing', 'support'],
   vendedor: ['inventory', 'income', 'support'],
-  compras: ['inventory', 'purchases', 'fordmac', 'suppliers', 'purchase_orders', 'support']
+  compras: ['inventory', 'purchases', 'fordmac', 'suppliers', 'purchase_orders', 'support'],
+  soporte: ['inventory', 'support']
 };
 
 const defaultViews: Record<Role, View> = {
@@ -58,7 +59,8 @@ const defaultViews: Record<Role, View> = {
   supervisor: 'dashboard',
   cajero: 'income',
   vendedor: 'inventory',
-  compras: 'fordmac'
+  compras: 'fordmac',
+  soporte: 'support'
 };
 
 interface NavItemProps {

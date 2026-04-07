@@ -35,6 +35,18 @@ export function Support() {
     branch: 'Boleita'
   });
 
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  const fetchUserRole = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+        const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id).single();
+        if (data) setUserRole(data.role);
+    }
+  };
+
   const fetchTickets = async () => {
     try {
       setLoading(true);
@@ -48,8 +60,27 @@ export function Support() {
   };
 
   useEffect(() => {
+    fetchUserRole();
     fetchTickets();
   }, []);
+
+  const handleUpdateStatus = async (id: string, status: SupportTicket['status']) => {
+    try {
+      await dbService.updateSupportTicket(id, { status });
+      if (selectedTicket?.id === id) {
+        setSelectedTicket({ ...selectedTicket, status });
+      }
+      fetchTickets();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error al actualizar el estado');
+    }
+  };
+
+  const handleOpenDetail = (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setIsDetailModalOpen(true);
+  };
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +133,8 @@ export function Support() {
     return matchesSearch && matchesStatus;
   });
 
+  const canManage = userRole === 'soporte' || userRole === 'director' || userRole === 'supervisor';
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header Section */}
@@ -112,7 +145,8 @@ export function Support() {
             Centro de Soporte
           </h2>
           <p className="text-gray-500 text-sm font-medium mt-1">
-            Gestiona tus requerimientos técnicos y reportes de errores
+            Gestiona tus requerimientos técnicos y reportes de errores. 
+            {userRole && <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-black uppercase tracking-widest border border-gray-200">Rol: {userRole}</span>}
           </p>
         </div>
         <button
@@ -204,7 +238,7 @@ export function Support() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredTickets.map((ticket) => (
-                  <tr key={ticket.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={ticket.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => handleOpenDetail(ticket)}>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="text-[10px] font-mono text-gray-400 uppercase">#{ticket.id.substring(0, 8)}</span>
@@ -234,16 +268,40 @@ export function Support() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-gray-500 uppercase">
-                          <Calendar size={12} className="text-gray-400" />
-                          {new Date(ticket.created_at).toLocaleDateString()}
-                        </div>
+                    <td className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">
+                      {new Date(ticket.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
-                        <MoreVertical size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {canManage ? (
+                          <>
+                            {ticket.status === 'open' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleUpdateStatus(ticket.id, 'in_progress'); }}
+                                className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[10px] font-black hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+                              >
+                                ATENDER
+                              </button>
+                            )}
+                            {(ticket.status === 'open' || ticket.status === 'in_progress') && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleUpdateStatus(ticket.id, 'resolved'); }}
+                                className="px-2 py-1 bg-green-50 text-green-600 border border-green-100 rounded text-[10px] font-black hover:bg-green-500 hover:text-white transition-all shadow-sm"
+                              >
+                                RESOLVER
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-[10px] text-gray-300 font-bold italic uppercase tracking-widest mr-2">Solo lectura</div>
+                        )}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleOpenDetail(ticket); }}
+                          className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black hover:bg-gray-200 transition-all uppercase"
+                        >
+                          Ver Detalles
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -360,6 +418,94 @@ export function Support() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Detail Modal */}
+      {isDetailModalOpen && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Requerimiento #{selectedTicket.id.substring(0, 8)}</span>
+                <h3 className="text-xl font-black text-gray-800">{selectedTicket.title}</h3>
+              </div>
+              <button 
+                onClick={() => setIsDetailModalOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-all"
+              >
+                <Plus size={24} className="rotate-45" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Estado</p>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border ${getStatusColor(selectedTicket.status)}`}>
+                    {selectedTicket.status === 'in_progress' ? 'En Progreso' : selectedTicket.status}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Prioridad</p>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${getPriorityColor(selectedTicket.priority)}`}>
+                    {selectedTicket.priority}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Categoría</p>
+                  <span className="text-[10px] font-black text-gray-600 uppercase">
+                    {selectedTicket.category === 'feature_request' ? 'Funcionalidad' : selectedTicket.category === 'support' ? 'Soporte' : selectedTicket.category === 'bug' ? 'Error' : 'Otro'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Descripción del Requerimiento</label>
+                <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 min-h-[150px] text-gray-700 font-medium leading-relaxed">
+                  {selectedTicket.description}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase">
+                    <Building2 size={14} className="text-[#D40000]" />
+                    {selectedTicket.branch}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase">
+                    <User size={14} className="text-[#D40000]" />
+                    {selectedTicket.creator_email}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase">
+                  <Calendar size={14} />
+                  {new Date(selectedTicket.created_at).toLocaleString()}
+                </div>
+              </div>
+
+              {canManage && (
+                <div className="pt-4 flex gap-3">
+                  {selectedTicket.status === 'open' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedTicket.id, 'in_progress')}
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-amber-500/20 uppercase text-xs"
+                    >
+                      Empezar a Atender
+                    </button>
+                  )}
+                  {(selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedTicket.id, 'resolved')}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-green-500/20 uppercase text-xs"
+                    >
+                      Marcar como Resuelto
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
