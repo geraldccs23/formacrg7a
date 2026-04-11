@@ -41,13 +41,14 @@ import { InternalTransfers } from './pages/InternalTransfers';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { CashierClosing } from './pages/CashierClosing';
 import { Support } from './pages/Support';
+import { Commissions } from './pages/Commissions';
 
-type View = 'dashboard' | 'inventory' | 'suppliers' | 'sales' | 'purchases' | 'sync' | 'settings' | 'fordmac' | 'income' | 'expenses' | 'banks' | 'admin_dashboard' | 'cashea' | 'customers' | 'internal_transfers' | 'purchase_orders' | 'cashier_closing' | 'support';
+type View = 'dashboard' | 'inventory' | 'suppliers' | 'sales' | 'purchases' | 'sync' | 'settings' | 'fordmac' | 'income' | 'expenses' | 'banks' | 'admin_dashboard' | 'cashea' | 'customers' | 'internal_transfers' | 'purchase_orders' | 'cashier_closing' | 'support' | 'commissions';
 export type Role = 'director' | 'supervisor' | 'cajero' | 'vendedor' | 'compras' | 'soporte';
 
 const rolePermissions: Record<Role, View[]> = {
-  director: ['dashboard', 'inventory', 'suppliers', 'sales', 'purchases', 'sync', 'settings', 'fordmac', 'income', 'expenses', 'banks', 'admin_dashboard', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support'],
-  supervisor: ['dashboard', 'inventory', 'suppliers', 'purchases', 'admin_dashboard', 'income', 'expenses', 'banks', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support'],
+  director: ['dashboard', 'inventory', 'suppliers', 'sales', 'purchases', 'sync', 'settings', 'fordmac', 'income', 'expenses', 'banks', 'admin_dashboard', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
+  supervisor: ['dashboard', 'inventory', 'suppliers', 'purchases', 'admin_dashboard', 'income', 'expenses', 'banks', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
   cajero: ['inventory', 'income', 'cashier_closing', 'support'],
   vendedor: ['inventory', 'income', 'support'],
   compras: ['inventory', 'purchases', 'fordmac', 'suppliers', 'purchase_orders', 'support'],
@@ -245,6 +246,7 @@ export default function App() {
             {(isSidebarOpen || window.innerWidth < 768) && <span className="px-4 text-[10px] text-gray-500 uppercase font-black tracking-widest">Administrativo</span>}
           </div>
           <NavItem icon={HistoryIcon} label="Cuadre de Caja" view="cashier_closing" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor', 'cajero']} userRole={userRole} />
+          <NavItem icon={Wallet} label="Comisiones" view="commissions" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={TrendingDown} label="Egresos" view="expenses" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={Landmark} label="Bancos" view="banks" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={ArrowLeftRight} label="Transf. Internas" view="internal_transfers" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
@@ -351,7 +353,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {activeView === 'dashboard' && <Dashboard />}
+              {activeView === 'dashboard' && <Dashboard userRole={userRole} />}
               {activeView === 'inventory' && <Inventory />}
               {activeView === 'suppliers' && <Suppliers />}
               {activeView === 'sales' && <SalesNE />}
@@ -368,6 +370,7 @@ export default function App() {
               {activeView === 'purchase_orders' && <PurchaseOrders />}
               {activeView === 'cashier_closing' && <CashierClosing />}
               {activeView === 'support' && <Support />}
+              {activeView === 'commissions' && <Commissions />}
               {activeView === 'settings' && <SettingsComponent />}
             </>
           )}

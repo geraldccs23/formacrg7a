@@ -399,27 +399,43 @@ export const dbService = {
   },
 
   // Dashboard Metrics
-  async getDashboardMetrics(branch: string): Promise<any> {
-    const dbBranch = this._mapBranch(branch);
-    const lookback = 30;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - lookback);
-    const today = new Date().toISOString().split('T')[0];
+  async getDashboardMetrics(branch: string, period: { month?: number, year?: number } = {}): Promise<any> {
+    const isConsolidated = branch === 'ALL';
+    const dbBranch = !isConsolidated ? this._mapBranch(branch) : null;
+    
+    let startDate: string;
+    let endDate: string | undefined;
 
-    // 1. Critical Stock Count
-    const { data: stockData } = await supabase
+    if (period.month && period.year) {
+        const start = new Date(period.year, period.month - 1, 1);
+        start.setHours(0, 0, 0, 0);
+        startDate = start.toISOString();
+        
+        const end = new Date(period.year, period.month, 0);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
+    } else {
+        startDate = new Date().toISOString().split('T')[0];
+    }
+
+    // 1. Critical Stock Count (always current)
+    const stockQuery = supabase
       .from('v_latest_stock_by_branch')
-      .select('codigo_producto, stock')
-      .eq('branch', branch);
+      .select('codigo_producto, stock, branch');
+    if (!isConsolidated) stockQuery.eq('branch', branch);
+    const { data: stockData } = await stockQuery;
 
     const criticalCount = stockData?.filter(s => Number(s.stock) < 7).length || 0;
 
-    // 2. Top Rotation Products (Sales Count)
-    const { data: salesData } = await supabase
+    // 2. Top Products
+    const topRotationStart = period.month ? startDate : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const topRotQuery = supabase
       .from('v_sales_lines')
       .select('codigo_producto, cantidad, total_usd')
-      .eq('sucursal', dbBranch)
-      .gte('fecha_hora', startDate.toISOString());
+      .gte('fecha_hora', topRotationStart)
+      .lte('fecha_hora', endDate || new Date().toISOString());
+    if (!isConsolidated) topRotQuery.eq('sucursal', dbBranch);
+    const { data: salesData } = await topRotQuery;
 
     const rotationMap: Record<string, { qty: number, usd: number }> = {};
     salesData?.forEach(s => {
@@ -433,36 +449,77 @@ export const dbService = {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
 
-    // 3. Sales Today (NE)
-    const { data: todaySales } = await supabase
+    // 3. Sales NE Aggregation
+    const salesQuery = supabase
       .from('v_sales_lines')
-      .select('total_usd')
-      .eq('sucursal', dbBranch)
-      .gte('fecha_hora', today);
+      .select('total_usd, sucursal, fecha_hora, num_nota')
+      .gte('fecha_hora', startDate);
+    if (endDate) salesQuery.lte('fecha_hora', endDate);
+    if (!isConsolidated) salesQuery.eq('sucursal', dbBranch);
+    const { data: todaySales } = await salesQuery;
 
     const totalToday = todaySales?.reduce((acc, s) => acc + Number(s.total_usd), 0) || 0;
 
     // 4. Purchases (Saint)
-    const { data: recentPurchases } = await supabase
+    const purchaseQuery = supabase
       .from('purchase_lines')
       .select('costo_usd')
-      .eq('sucursal', dbBranch)
-      .gte('fecha_hora', today);
+      .gte('fecha_hora', startDate);
+    if (endDate) purchaseQuery.lte('fecha_hora', endDate);
+    if (!isConsolidated) purchaseQuery.eq('sucursal', dbBranch);
+    const { data: recentPurchases } = await purchaseQuery;
     const totalPurchasesToday = recentPurchases?.reduce((acc, p) => acc + Number(p.costo_usd), 0) || 0;
 
-    // 5. Purchase Orders (Internal)
-    const { data: pendingPOs } = await supabase
+    // 5. Purchase Orders
+    const poQuery = supabase
       .from('purchase_orders')
       .select('total_amount_usd')
       .eq('status', 'PENDING');
+    if (!isConsolidated) poQuery.eq('branch', branch);
+    const { data: pendingPOs } = await poQuery;
     const totalPendingPOs = pendingPOs?.reduce((acc, o) => acc + Number(o.total_amount_usd || 0), 0) || 0;
 
-    // 6. Cashier closing (Income Today)
-    const { data: incomeToday } = await supabase
+    // 6. Cashier closing (Incomes)
+    const incomeQuery = supabase
       .from('incomes')
-      .select('total_amount')
-      .gte('created_at', today);
-    const totalIncomeToday = incomeToday?.reduce((acc, i) => acc + Number(i.total_amount), 0) || 0;
+      .select('*, sellers(name)')
+      .gte('created_at', startDate);
+    if (endDate) incomeQuery.lte('created_at', endDate);
+    if (!isConsolidated) incomeQuery.eq('branch', branch);
+    const { data: incomes } = await incomeQuery;
+    const totalIncomeToday = incomes?.reduce((acc, i) => acc + Number(i.total_amount), 0) || 0;
+
+    // 7. Sales by Seller aggregation (Detailed by Branch)
+    const salesBySellerMap: Record<string, { [key: string]: number, total: number }> = {};
+    const salesByBranchMap: Record<string, { income: number, salesNE: number }> = {
+      'Boleita': { income: 0, salesNE: 0 },
+      'Sabana Grande': { income: 0, salesNE: 0 }
+    };
+    
+    incomes?.forEach(i => {
+      const sellerName = i.sellers?.name || 'Varios / Otros';
+      if (!salesBySellerMap[sellerName]) {
+        salesBySellerMap[sellerName] = { 'Boleita': 0, 'Sabana Grande': 0, 'total': 0 };
+      }
+      if (salesByBranchMap[i.branch]) {
+        salesBySellerMap[sellerName][i.branch] += Number(i.total_amount);
+      }
+      salesBySellerMap[sellerName].total += Number(i.total_amount);
+      
+      if (salesByBranchMap[i.branch]) salesByBranchMap[i.branch].income += Number(i.total_amount);
+    });
+
+    todaySales?.forEach(s => {
+      const branchName = s.sucursal === '01' ? 'Boleita' : 'Sabana Grande';
+      if (salesByBranchMap[branchName]) salesByBranchMap[branchName].salesNE += Number(s.total_usd);
+    });
+
+    const salesBySeller = Object.entries(salesBySellerMap)
+      .map(([name, branches]) => ({ name, ...branches }))
+      .sort((a, b) => b.total - a.total);
+
+    const salesByBranch = Object.entries(salesByBranchMap)
+      .map(([name, totals]) => ({ name, ...totals }));
 
     return {
       criticalCount,
@@ -471,7 +528,11 @@ export const dbService = {
       totalCountToday: todaySales?.length || 0,
       totalPurchasesToday,
       totalPendingPOs,
-      totalIncomeToday
+      totalIncomeToday,
+      salesBySeller,
+      salesByBranch,
+      rawIncomes: incomes || [],
+      rawSalesNE: todaySales || []
     };
   },
 
@@ -688,5 +749,45 @@ export const dbService = {
       })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  async getWeeklyCommissionMetrics(month: number, year: number, branch: string = 'ALL'): Promise<any[]> {
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0, 23, 59, 59);
+    
+    const query = supabase
+      .from('incomes')
+      .select('*, sellers(name)')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString());
+    
+    if (branch !== 'ALL') query.eq('branch', branch);
+    
+    const { data: incomes } = await query;
+    const sellersMap: Record<string, any> = {};
+
+    incomes?.forEach(i => {
+      const name = i.sellers?.name || 'Varios / Otros';
+      if (!sellersMap[name]) {
+        sellersMap[name] = { name, w1: 0, w2: 0, w3: 0, w4: 0, total: 0 };
+      }
+      
+      const date = new Date(i.created_at).getDate();
+      const amount = Number(i.total_amount);
+      
+      if (date <= 7) sellersMap[name].w1 += amount;
+      else if (date <= 14) sellersMap[name].w2 += amount;
+      else if (date <= 21) sellersMap[name].w3 += amount;
+      else sellersMap[name].w4 += amount;
+      
+      sellersMap[name].total += amount;
+    });
+
+    return Object.values(sellersMap).sort((a, b) => b.total - a.total);
+  },
+
+  async getSellers() {
+    const { data } = await supabase.from('sellers').select('*').eq('active', true).order('name');
+    return data || [];
   }
 };

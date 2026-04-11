@@ -21,6 +21,7 @@ export function Income() {
     const [paymentCondition, setPaymentCondition] = useState<PaymentCondition>('Contado');
     const [totalAmount, setTotalAmount] = useState<number | ''>('');
     const [totalAmountBs, setTotalAmountBs] = useState<number | ''>('');
+    const [incomeType, setIncomeType] = useState<'Venta' | 'Devolucion'>('Venta');
 
     // Customer State
     const [customerId, setCustomerId] = useState('');
@@ -110,8 +111,14 @@ export function Income() {
     async function fetchUserRole() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-            const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id).single();
-            if (data) setUserRole(data.role);
+            const { data } = await supabase.from('user_roles').select('role, branch').eq('user_id', session.user.id).single();
+            if (data) {
+                setUserRole(data.role);
+                // No forzar la sucursal, dejar que el usuario elija si desea, pero mantener el default si tiene uno
+                if (data.branch) {
+                    setBranch(data.branch as BranchType);
+                }
+            }
         }
     }
 
@@ -176,9 +183,10 @@ export function Income() {
           }
           const { data: { session } } = await supabase.auth.getSession();
           const { data: income, error: iError } = await supabase.from('incomes').insert([{
-            branch, document_type: docType, document_number: docNumber, payment_condition: paymentCondition,
+            branch, type: incomeType, document_type: docType, document_number: docNumber, payment_condition: paymentCondition,
             customer_id: customerId || null, customer_name: customerName || null, customer_phone: customerPhone || null,
-            total_amount: Number(totalAmount), seller_id: selectedSeller || null, delivery_method: deliveryMethod,
+            total_amount: incomeType === 'Devolucion' ? -Math.abs(Number(totalAmount)) : Number(totalAmount), 
+            seller_id: selectedSeller || null, delivery_method: deliveryMethod,
             courier_id: deliveryMethod === 'Servientrega' ? selectedCourier : null, 
             shipping_agency: deliveryMethod === 'Envío Nacional' ? selectedAgency : null,
             cash_register: selectedCashRegister,
@@ -189,7 +197,9 @@ export function Income() {
     
           let paymentsToInsert = payments.map(p => ({
             income_id: income.id, payment_type: paymentCondition === 'Inicial de Cashea' ? `INICIAL: ${p.type}` : p.type,
-            amount: p.amount, exchange_rate: p.exchange_rate, amount_bs: p.amount_bs || (p.amount * p.exchange_rate),
+            amount: incomeType === 'Devolucion' ? -Math.abs(p.amount) : p.amount, 
+            exchange_rate: p.exchange_rate, 
+            amount_bs: incomeType === 'Devolucion' ? -Math.abs(p.amount_bs || (p.amount * p.exchange_rate)) : (p.amount_bs || (p.amount * p.exchange_rate)),
             bank_account_id: p.bankAccountId
           }));
     
@@ -212,7 +222,7 @@ export function Income() {
           }
     
           alert('Ingreso registrado con éxito');
-          setStep(1); setDocNumber(''); setTotalAmount(''); setPayments([]); setCustomerId(''); setCustomerName(''); setCustomerPhone('');
+          setStep(1); setDocNumber(''); setTotalAmount(''); setPayments([]); setCustomerId(''); setCustomerName(''); setCustomerPhone(''); setIncomeType('Venta');
           fetchRecentIncomes(); setActiveTab('history');
         } catch (e: any) {
           alert('Error: ' + e.message);
@@ -326,16 +336,45 @@ export function Income() {
                     <div className="p-6 md:p-10 min-h-[400px]">
                         {step === 1 && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div><h3 className="text-xl font-black text-gray-800 mb-2">Paso 1: Datos del Documento</h3><p className="text-sm text-gray-500 font-medium">Define dónde se origina esta venta y el monto total.</p></div>
+                                <div>
+                                    <h3 className="text-xl font-black text-gray-800 mb-2">Paso 1: Datos del Documento</h3>
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <p className="text-sm text-gray-500 font-medium">Define dónde se origina esta venta y el monto total.</p>
+                                        <div className="flex bg-gray-100 p-1 rounded-xl shadow-sm border border-gray-200">
+                                            <button 
+                                                onClick={() => setIncomeType('Venta')}
+                                                className={`px-6 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${incomeType === 'Venta' ? 'bg-[#D40000] text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                                            >
+                                                VENTA
+                                            </button>
+                                            <button 
+                                                onClick={() => setIncomeType('Devolucion')}
+                                                className={`px-6 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${incomeType === 'Devolucion' ? 'bg-orange-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                                            >
+                                                DEVOLUCIÓN
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Sucursal</label><select value={branch} onChange={e => setBranch(e.target.value as any)} className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"><option value="Boleita">Boleita</option><option value="Sabana Grande">Sabana Grande</option></select></div>
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Sucursal</label>
+                                        <select 
+                                            value={branch} 
+                                            onChange={e => setBranch(e.target.value as any)} 
+                                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"
+                                        >
+                                            <option value="Boleita">Boleita</option>
+                                            <option value="Sabana Grande">Sabana Grande</option>
+                                        </select>
+                                    </div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Caja</label><select value={selectedCashRegister} onChange={e => setSelectedCashRegister(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"><option value="">-- Seleccione una caja --</option>{cashRegistersByBranch[branch].map(cr => <option key={cr} value={cr}>{cr}</option>)}</select></div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Tipo de Documento</label><select value={docType} onChange={e => setDocType(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"><option value="Factura">Factura Fiscal</option><option value="Recibo">Recibo Manual</option><option value="Nota de Entrega">Nota de Entrega</option></select></div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Nº de Documento</label><input type="text" value={docNumber} onChange={e => setDocNumber(e.target.value)} placeholder="0001" className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700" /></div>
-                                    <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Monto Total $</label><input type="number" value={totalAmount} onChange={e => { const val = e.target.value; setTotalAmount(val === '' ? '' : Number(val)); if (val && exchangeRate) setTotalAmountBs(Number((Number(val) * exchangeRate).toFixed(2))) }} placeholder="0.00" className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-2xl font-black text-2xl text-[#D40000] transition-all outline-none" /></div>
+                                    <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Monto Total $</label><input type="number" value={totalAmount} onChange={e => { const val = e.target.value; setTotalAmount(val === '' ? '' : Number(val)); if (val && exchangeRate) setTotalAmountBs(Number((Number(val) * exchangeRate).toFixed(2))) }} placeholder="0.00" className={`w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-2xl font-black text-2xl transition-all outline-none ${incomeType === 'Devolucion' ? 'text-orange-600' : 'text-[#D40000]'}`} /></div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Monto en Bolívares (VEF)</label><input type="number" value={totalAmountBs} onChange={e => { const val = e.target.value; setTotalAmountBs(val === '' ? '' : Number(val)); if (val && exchangeRate) setTotalAmount(Number((Number(val) / exchangeRate).toFixed(2))) }} placeholder="0.00" className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-2xl font-black text-xl text-gray-500 transition-all outline-none" /></div>
                                     <div className="md:col-span-2 flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 self-start">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tasa Referencial (DolarAPI):</span>
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tasa Referencial:</span>
                                         <span className="text-sm font-black text-[#D40000]">1 USD = {exchangeRate.toLocaleString('es-VE')} Bs</span>
                                     </div>
                                 </div>
@@ -503,6 +542,7 @@ export function Income() {
                                 <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Documento</th>
                                 <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cliente</th>
                                 <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Sucursal</th>
+                                <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo</th>
                                 <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Condición</th>
                                 <th className="py-5 px-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Venta Total</th>
                                 <th className="py-5 px-6 text-[10px] font-black text-red-600 uppercase tracking-widest text-right">Ingreso Real</th>
@@ -514,16 +554,31 @@ export function Income() {
                                         .filter((p: any) => p.payment_type !== 'Cashea' && p.payment_type !== 'Credito')
                                         .reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
 
+                                    const isReturn = inc.type === 'Devolucion';
+
                                     return (
-                                        <tr key={inc.id} className="hover:bg-gray-50/80 transition-all group">
-                                            <td className="py-5 px-6"><div className="text-sm font-black text-gray-700">{new Date(inc.created_at).toLocaleDateString()}</div><div className="text-[10px] text-gray-400 font-bold">{new Date(inc.created_at).toLocaleTimeString()}</div></td>
-                                            <td className="py-5 px-6"><div className="text-sm font-black text-gray-800">{inc.document_type}</div><div className="text-xs text-gray-500 font-mono">#{inc.document_number}</div></td>
+                                        <tr key={inc.id} className={`hover:bg-gray-50/80 transition-all group ${isReturn ? 'border-l-4 border-l-orange-500' : ''}`}>
+                                            <td className="py-5 px-6">
+                                                <div className="text-sm font-black text-gray-700">{new Date(inc.created_at).toLocaleDateString()}</div>
+                                                <div className={`text-[10px] font-bold ${isReturn ? 'text-orange-600' : 'text-gray-400'}`}>
+                                                    {isReturn ? 'DEVOLUCIÓN' : new Date(inc.created_at).toLocaleTimeString()}
+                                                </div>
+                                            </td>
+                                            <td className="py-5 px-6">
+                                                <div className="text-sm font-black text-gray-800">{inc.document_type}</div>
+                                                <div className="text-xs text-gray-500 font-mono">#{inc.document_number}</div>
+                                            </td>
                                             <td className="py-5 px-6">
                                                 <div className="text-sm font-black text-gray-700 uppercase">{inc.customer_name || 'Sin nombre'}</div>
                                                 <div className="text-[10px] text-gray-400 font-mono tracking-tighter">{inc.customer_id}</div>
                                             </td>
-                                            <td className="py-5 px-6 text-sm text-gray-600 font-medium">{inc.branch}</td>
-                                            <td className="py-5 px-6"><span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${inc.payment_condition === 'Contado' ? 'bg-green-100 text-green-700' : inc.payment_condition === 'Inicial de Cashea' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>{inc.payment_condition}</span></td>
+                                             <td className="py-5 px-6 text-sm text-gray-600 font-medium">{inc.branch}</td>
+                                             <td className="py-5 px-6">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${isReturn ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {inc.type || 'Venta'}
+                                                </span>
+                                             </td>
+                                             <td className="py-5 px-6"><span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${inc.payment_condition === 'Contado' ? 'bg-green-100 text-green-700' : inc.payment_condition === 'Inicial de Cashea' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>{inc.payment_condition}</span></td>
                                             <td className="py-5 px-6 text-right"><div className="text-lg font-black text-gray-400 opacity-60">${Number(inc.total_amount).toFixed(2)}</div></td>
                                             <td className="py-5 px-6 text-right"><div className="text-xl font-black text-[#D40000]">${realInflow.toFixed(2)}</div></td>
                                             <td className="py-5 px-6 text-center">

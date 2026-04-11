@@ -63,8 +63,13 @@ export function Expenses() {
     const fetchUserRole = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-            const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id).single();
-            if (data) setUserRole(data.role);
+            const { data } = await supabase.from('user_roles').select('role, branch').eq('user_id', session.user.id).single();
+            if (data) {
+                setUserRole(data.role);
+                if (data.branch) {
+                    setBranch(data.branch as BranchType);
+                }
+            }
         }
     };
 
@@ -288,7 +293,12 @@ export function Expenses() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sucursal</label>
-                                    <select value={branch} onChange={e => setBranch(e.target.value as BranchType)} className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 text-sm font-medium">
+                                    <select 
+                                        value={branch} 
+                                        disabled={userRole !== 'director' && userRole !== 'supervisor'}
+                                        onChange={e => setBranch(e.target.value as BranchType)} 
+                                        className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                                    >
                                         <option value="Boleita">Boleita</option>
                                         <option value="Sabana Grande">Sabana Grande</option>
                                     </select>

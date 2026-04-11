@@ -136,6 +136,7 @@ export type BranchType = 'Boleita' | 'Sabana Grande';
 export interface Income {
   id: number;
   branch: BranchType;
+  type: 'Venta' | 'Devolucion';
   document_type: string;
   document_number: string;
   payment_condition: PaymentCondition;
