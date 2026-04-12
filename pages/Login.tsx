@@ -42,7 +42,7 @@ export function Login() {
                             </div>
                         </div>
                         <h1 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Acceso Administrativo</h1>
-                        <p className="text-gray-500 text-xs font-mono uppercase tracking-widest">Saint Integration Core v2.4</p>
+                        <p className="text-gray-500 text-xs font-mono uppercase tracking-widest">ERP Integration Core v2.4</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="p-8 space-y-6">

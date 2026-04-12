@@ -561,6 +561,26 @@ export const dbService = {
 
   // Get Latest Exchange Rate from Dolar API with DB fallback
   async getLatestExchangeRate(): Promise<number> {
+    const today = new Date();
+    // Check if today is Saturday (6)
+    if (today.getDay() === 6) {
+      try {
+        const localizedDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000));
+        const yyyymmdd = localizedDate.toISOString().split('T')[0];
+        
+        const { data, error } = await supabase.from('daily_rates').select('rate').eq('date', yyyymmdd).single();
+        if (data && data.rate) {
+          return Number(data.rate);
+        } else {
+          // Return -1 to signal frontend to prompt for manual rate
+          return -1;
+        }
+      } catch (e) {
+        // If single() fails cause no row, return -1
+        return -1;
+      }
+    }
+
     try {
       // Try Dolar API first (Official rate for Venezuela)
       const controller = new AbortController();
@@ -656,6 +676,22 @@ export const dbService = {
   },
 
   // Customers
+  async registerIncomePayment(payment: { income_id: number; payment_type: string; amount: number; bank_account_id: number | null; exchange_rate?: number; amount_bs?: number }) {
+    // Note: exchange_rate and amount_bs are not in the db schema for income_payments currently, so we only insert the defined columns
+    const insertData = {
+      income_id: payment.income_id,
+      payment_type: payment.payment_type,
+      amount: payment.amount,
+      bank_account_id: payment.bank_account_id
+    };
+
+    const { error } = await supabase
+      .from('income_payments')
+      .insert([insertData]);
+    
+    if (error) throw error;
+  },
+
   async getCustomerById(id: string) {
     const { data, error } = await supabase
       .from('customers')
@@ -664,6 +700,44 @@ export const dbService = {
       .maybeSingle();
     if (error) throw error;
     return data;
+  },
+
+  async getCustomerDebts(id: string) {
+    const { data, error } = await supabase
+      .from('incomes')
+      .select('total_amount, payment_condition, income_payments(amount), cashea_installments(amount_usd, status)')
+      .eq('customer_id', id);
+    
+    if (error || !data) return { pendingCxc: 0, pendingCashea: 0 };
+    
+    let pendingCxc = 0;
+    let pendingCashea = 0;
+
+    data.forEach(inc => {
+        if (inc.payment_condition === 'Credito') {
+            const amount = Number(inc.total_amount) || 0;
+            const paid = inc.income_payments?.reduce((acc: any, p: any) => acc + (Number(p.amount) || 0), 0) || 0;
+            if (amount - paid > 0) pendingCxc += (amount - paid);
+        }
+        
+        inc.cashea_installments?.forEach((inst: any) => {
+            if (inst.status === 'pending') {
+                pendingCashea += (Number(inst.amount_usd) || 0);
+            }
+        });
+    });
+
+    return { pendingCxc, pendingCashea };
+  },
+
+  async searchCustomers(term: string) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .or(`id.ilike.%${term}%,name.ilike.%${term}%`)
+      .limit(10);
+    if (error) throw error;
+    return data || [];
   },
 
   async upsertCustomer(customer: { id: string, name: string, phone?: string }) {
@@ -676,10 +750,22 @@ export const dbService = {
   async getCustomers() {
     const { data, error } = await supabase
       .from('customers')
-      .select('*, incomes(total_amount), cashea_installments(amount_usd, status)')
+      .select('*, incomes(id, total_amount, payment_condition, type, income_payments(amount), cashea_installments(amount_usd, status))')
       .order('name', { ascending: true });
     if (error) throw error;
     return data;
+  },
+
+  async registerIncomePayment(payment: {
+    income_id: number;
+    payment_type: string;
+    amount: number;
+    bank_account_id?: number | null;
+    exchange_rate?: number;
+    amount_bs?: number;
+  }): Promise<void> {
+    const { error } = await supabase.from('income_payments').insert([payment]);
+    if (error) throw error;
   },
 
   // Bank Transfers (NUEVO COMIENZO v4 - Bypassing persistent cache)
@@ -789,5 +875,25 @@ export const dbService = {
   async getSellers() {
     const { data } = await supabase.from('sellers').select('*').eq('active', true).order('name');
     return data || [];
+  },
+
+  async saveDailyRate(rate: number): Promise<void> {
+    const today = new Date();
+    const localizedDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000));
+    const yyyymmdd = localizedDate.toISOString().split('T')[0];
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Check if exists first to avoid conflict if multiple try at once
+    const { data: existing } = await supabase.from('daily_rates').select('rate').eq('date', yyyymmdd).single();
+    if (existing) return;
+
+    const { error } = await supabase.from('daily_rates').insert([{
+      date: yyyymmdd,
+      rate: rate,
+      set_by: session?.user?.id
+    }]);
+    
+    // We swallow conflict errors if another user just inserted it
+    if (error && error.code !== '23505') throw error;
   }
 };

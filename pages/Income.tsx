@@ -43,6 +43,9 @@ export function Income() {
     // Exchange Rate State
     const [exchangeRate, setExchangeRate] = useState<number>(1);
     const [amountBs, setAmountBs] = useState<number | ''>('');
+    const [isSaturdayRateModalOpen, setIsSaturdayRateModalOpen] = useState(false);
+    const [saturdayManualRate, setSaturdayManualRate] = useState<number | ''>('');
+    const [savingSaturdayRate, setSavingSaturdayRate] = useState(false);
 
     // Seller & Delivery
     const [sellers, setSellers] = useState<Seller[]>([]);
@@ -61,10 +64,11 @@ export function Income() {
     const [newCourierPhone, setNewCourierPhone] = useState('');
     const [savingCourier, setSavingCourier] = useState(false);
 
-    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [customerList, setCustomerList] = useState<any[]>([]);
     const [customerSearch, setCustomerSearch] = useState('');
     const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+    const [customerAutocompleteResults, setCustomerAutocompleteResults] = useState<any[]>([]);
+    const [customerDebts, setCustomerDebts] = useState<{ pendingCxc: number, pendingCashea: number } | null>(null);
 
     const [numInstallments, setNumInstallments] = useState<number>(3);
     const [saving, setSaving] = useState(false);
@@ -95,7 +99,13 @@ export function Income() {
                 dbService.getCouriers()
             ]);
             if (accounts.data) setBankAccounts(accounts.data as any);
-            setExchangeRate(rate);
+            
+            if (rate === -1) {
+                setIsSaturdayRateModalOpen(true);
+            } else {
+                setExchangeRate(rate);
+            }
+            
             setSellers(sellersData);
             setCouriers(couriersData);
             setLoadingAccounts(false);
@@ -132,30 +142,67 @@ export function Income() {
     };
 
     useEffect(() => {
-        if (!customerId || customerId.length < 7) return;
+        if (!customerId && !customerName) {
+            setCustomerAutocompleteResults([]);
+            return;
+        }
+        
+        const searchTerm = customerId || customerName;
+        if (searchTerm.length < 3) return;
+
         const t = setTimeout(async () => {
             setIsSearchingCustomer(true);
-            const c = await dbService.getCustomerById(customerId);
-            if (c) {
-                setCustomerName(c.name);
-                setCustomerPhone(c.phone || '');
+            try {
+                // If the user typed an exact cedula, try to fetch directly
+                if (customerId && customerId.length >= 7) {
+                    const exactMatch = await dbService.getCustomerById(customerId);
+                    if (exactMatch) {
+                        setCustomerName(exactMatch.name);
+                        setCustomerPhone(exactMatch.phone || '');
+                        setCustomerAutocompleteResults([]);
+                        setIsSearchingCustomer(false);
+                        const debts = await dbService.getCustomerDebts(customerId);
+                        setCustomerDebts(debts);
+                        return;
+                    }
+                }
+
+                // Otherwise run a loose autocomplete
+                const results = await dbService.searchCustomers(searchTerm);
+                setCustomerAutocompleteResults(results);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setIsSearchingCustomer(false);
             }
-            setIsSearchingCustomer(false);
-        }, 600);
+        }, 250);
+
         return () => clearTimeout(t);
-    }, [customerId]);
+    }, [customerId, customerName]);
 
-    const openCustomerSearch = async () => {
-        setIsCustomerModalOpen(true);
-        const data = await dbService.getCustomers();
-        setCustomerList(data);
-    };
-
-    const handleSelectCustomer = (c: any) => {
+    const handleSelectCustomer = async (c: any) => {
         setCustomerId(c.id);
         setCustomerName(c.name);
         setCustomerPhone(c.phone || '');
-        setIsCustomerModalOpen(false);
+        setCustomerAutocompleteResults([]);
+        try {
+            const debts = await dbService.getCustomerDebts(c.id);
+            setCustomerDebts(debts);
+        } catch(e) {}
+    };
+
+    const handleSaveSaturdayRate = async () => {
+        if (!saturdayManualRate || Number(saturdayManualRate) <= 0) return;
+        setSavingSaturdayRate(true);
+        try {
+            await dbService.saveDailyRate(Number(saturdayManualRate));
+            setExchangeRate(Number(saturdayManualRate));
+            setIsSaturdayRateModalOpen(false);
+        } catch (e: any) {
+            alert('Error al guardar la tasa: ' + e.message);
+        } finally {
+            setSavingSaturdayRate(false);
+        }
     };
 
     const handleSaveCourier = async () => {
@@ -421,16 +468,112 @@ export function Income() {
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div><h3 className="text-xl font-black text-gray-800 mb-2">Paso 2: Información del Cliente</h3><p className="text-sm text-gray-500 font-medium">Asocia la venta a un cliente para control de CxC y Cashea.</p></div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="md:col-span-2 space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Condición de Venta</label><div className="flex gap-4 p-1 bg-gray-100 rounded-2xl">{(['Contado', 'Credito', 'Inicial de Cashea'] as PaymentCondition[]).map(c => (
-                                        <button key={c} onClick={() => setPaymentCondition(c)} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${paymentCondition === c ? 'bg-white text-[#D40000] shadow-md scale-[1.02]' : 'text-gray-500 hover:text-gray-700'}`}>{c === 'Credito' ? 'CRÉDITO / CxC' : c === 'Inicial de Cashea' ? 'CASHEA' : c}</button>))}</div>
+                                    <div className="md:col-span-2 relative space-y-4 bg-red-50/50 p-6 rounded-3xl border border-red-100">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">
+                                                    Cédula / RIF (Nuevo o Existente) {isSearchingCustomer && <Loader2 size={12} className="inline animate-spin text-[#D40000] ml-2" />}
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    value={customerId} 
+                                                    onChange={e => {
+                                                        setCustomerId(e.target.value.toUpperCase());
+                                                        setCustomerAutocompleteResults([]);
+                                                        setCustomerDebts(null);
+                                                    }} 
+                                                    placeholder="EJ: V-12345678" 
+                                                    className="w-full px-4 py-3 bg-white border-2 border-transparent focus:border-[#D40000] rounded-xl font-black text-gray-800 transition-all outline-none uppercase shadow-sm" 
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Nombre del Cliente</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={customerName} 
+                                                    onChange={e => {
+                                                        setCustomerName(e.target.value);
+                                                        setCustomerAutocompleteResults([]);
+                                                        setCustomerDebts(null);
+                                                    }} 
+                                                    placeholder="Juan Pérez" 
+                                                    className="w-full px-4 py-3 bg-white border-2 border-transparent focus:border-[#D40000] rounded-xl font-bold transition-all outline-none shadow-sm" 
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Inline Autocomplete Menu */}
+                                        {customerAutocompleteResults.length > 0 && (
+                                            <div className="absolute top-20 left-0 w-full z-50 px-6">
+                                                <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-h-64 overflow-y-auto w-full">
+                                                    <div className="p-3 bg-gray-50 border-b text-xs font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                                                        <span>Clientes Encontrados ({customerAutocompleteResults.length})</span>
+                                                        <button onClick={() => setCustomerAutocompleteResults([])}><X size={14} /></button>
+                                                    </div>
+                                                    {customerAutocompleteResults.map(c => (
+                                                        <button 
+                                                            key={c.id} 
+                                                            onClick={() => handleSelectCustomer(c)} 
+                                                            className="w-full p-4 text-left hover:bg-red-50 flex items-center justify-between transition-colors border-b last:border-0 group"
+                                                        >
+                                                            <div>
+                                                                <p className="text-sm font-black text-gray-800 uppercase group-hover:text-[#D40000]">{c.name}</p>
+                                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{c.id} • {c.phone || 'Sin WhatsApp'}</p>
+                                                            </div>
+                                                            <ArrowRightCircle size={18} className="text-gray-200 group-hover:text-[#D40000]" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {customerId.length >= 7 && customerName.length > 2 && customerAutocompleteResults.length === 0 && !isSearchingCustomer && !customerDebts && (
+                                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-emerald-50 text-emerald-800 rounded-2xl border-2 border-emerald-100">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center font-black shadow-sm">+</span>
+                                                    <div className="text-xs">
+                                                        <b className="uppercase tracking-widest text-[#D40000]">Cliente Nuevo Detectado</b>
+                                                        <p className="opacity-80 font-medium">Registra este cliente antes de continuar.</p>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={async () => {
+                                                        try {
+                                                            await dbService.upsertCustomer({ id: customerId, name: customerName, phone: customerPhone });
+                                                            alert(`¡El cliente ${customerName} ha sido registrado exitosamente!`);
+                                                            const debts = await dbService.getCustomerDebts(customerId);
+                                                            setCustomerDebts(debts);
+                                                        } catch (e: any) {
+                                                            alert('Error registrando cliente: ' + e.message);
+                                                        }
+                                                    }}
+                                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase cursor-pointer shadow-lg hover:-translate-y-0.5 transition-all w-full md:w-auto"
+                                                >
+                                                    Guardar Cliente Ahora
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {customerDebts && (customerDebts.pendingCxc > 0 || customerDebts.pendingCashea > 0) && (
+                                            <div className="flex bg-orange-50 p-4 rounded-2xl border-2 border-orange-100 mt-2 gap-4 items-center animate-in slide-in-from-bottom-2">
+                                                <div className="w-12 h-12 bg-orange-200 text-orange-700 rounded-xl flex items-center justify-center">
+                                                    <Wallet size={24} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-orange-800 text-sm uppercase tracking-widest">Advertencia: Deudas Pendientes</h4>
+                                                    <div className="flex gap-4 mt-1 text-xs font-bold text-orange-600">
+                                                        {customerDebts.pendingCxc > 0 && <span>Créditos CxC: <b>${customerDebts.pendingCxc.toFixed(2)}</b></span>}
+                                                        {customerDebts.pendingCashea > 0 && <span>Cashea: <b>${customerDebts.pendingCashea.toFixed(2)}</b></span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="space-y-2 pt-2">
+                                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Teléfono (WhatsApp)</label>
+                                            <input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0412-1234567" className="w-full px-4 py-3 bg-white border-2 border-transparent focus:border-[#D40000] rounded-xl font-bold transition-all outline-none shadow-sm" />
+                                        </div>
                                     </div>
-                                    <div className="relative space-y-2">
-                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Cédula / RIF {isSearchingCustomer && <Loader2 size={12} className="inline animate-spin text-[#D40000] ml-2" />}</label>
-                                        <input type="text" value={customerId} onChange={e => setCustomerId(e.target.value.toUpperCase())} placeholder="V-12345678" className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none uppercase" />
-                                        <button onClick={openCustomerSearch} className="absolute right-3 top-[34px] p-1 text-gray-400 hover:text-[#D40000] transition-colors"><Search size={22} /></button>
-                                    </div>
-                                    <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Nombre del Cliente</label><input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Juan Pérez" className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none" /></div>
-                                    <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Teléfono (WhatsApp)</label><input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0412-1234567" className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none" /></div>
                                     {paymentCondition === 'Inicial de Cashea' && (<div className="space-y-2"><label className="block text-xs font-black text-red-600 uppercase tracking-widest">Número de Cuotas</label><input type="number" value={numInstallments} onChange={e => setNumInstallments(Number(e.target.value))} className="w-full px-4 py-3 bg-red-50 border-2 border-red-200 focus:border-[#D40000] focus:bg-white rounded-xl font-black text-center text-xl transition-all outline-none" /></div>)}
                                 </div>
                                 <div className="flex flex-col md:flex-row gap-4 pt-6"><button onClick={() => setStep(1)} className="px-8 py-4 border-2 border-gray-100 text-gray-500 rounded-2xl font-black hover:bg-gray-50 transition-all">Regresar</button><button onClick={() => setStep(3)} disabled={isCustomerMandatory && (!customerId || !customerName)} className="ml-auto flex items-center gap-2 px-8 py-4 bg-gray-900 text-white rounded-2xl font-black shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-30 disabled:translate-y-0">Siguiente Paso <ArrowRightCircle size={20} /></button></div>
@@ -608,7 +751,14 @@ export function Income() {
                         ) : (
                             customerList.map(c => {
                                 const total = c.incomes?.reduce((acc: number, inc: any) => acc + (Number(inc.total_amount) || 0), 0) || 0;
-                                const pending = c.cashea_installments?.filter((i: any) => i.status === 'pending').reduce((acc: number, i: any) => acc + (Number(i.amount_usd) || 0), 0) || 0;
+                                let pending = 0;
+                                c.incomes?.forEach((inc: any) => {
+                                    inc.cashea_installments?.forEach((i: any) => {
+                                        if (i.status === 'pending') {
+                                            pending += (Number(i.amount_usd) || 0);
+                                        }
+                                    });
+                                });
                                 return (
                                     <div key={c.id} className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-xl transition-all group overflow-hidden relative">
                                         <div className="absolute top-0 right-0 w-24 h-24 bg-gray-50 rounded-bl-full -mr-12 -mt-12 group-hover:bg-red-50 transition-colors"></div>
@@ -650,18 +800,7 @@ export function Income() {
                 </div>
             )}
 
-            {isCustomerModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                        <div className="p-4 bg-gray-50 border-b flex items-center justify-between"><h3 className="font-black text-gray-800 uppercase tracking-widest text-sm">Escoger Cliente</h3><button onClick={() => setIsCustomerModalOpen(false)}><X size={20} /></button></div>
-                        <div className="p-4 border-b flex items-center gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-gray-400" size={16} /><input type="text" placeholder="Buscar por nombre o cédula..." className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-100 transition-all font-bold" value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} autoFocus /></div></div>
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                            {customerList.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.id.includes(customerSearch.toUpperCase())).slice(0, 50).map(c => (
-                                <button key={c.id} onClick={() => handleSelectCustomer(c)} className="w-full p-3 text-left rounded-xl hover:bg-red-50 flex items-center justify-between transition-all group"><div><p className="text-sm font-black text-gray-800 uppercase group-hover:text-[#D40000]">{c.name}</p><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{c.id}</p></div><ArrowRightCircle size={18} className="text-gray-200 group-hover:text-[#D40000]" /></button>))}
-                        </div>
-                    </div>
-                </div>
-            )}
+           {/* Modal Directry removed as requested */}
 
             {isCourierModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -697,6 +836,39 @@ export function Income() {
                                 className="w-full py-3 bg-[#D40000] text-white rounded-xl font-black text-sm shadow-xl shadow-red-100 hover:shadow-2xl hover:-translate-y-0.5 transition-all disabled:opacity-50"
                             >
                                 {savingCourier ? 'Guardando...' : 'Registrar Motorizado'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isSaturdayRateModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 bg-red-50 border-b border-red-100 text-center">
+                            <div className="mx-auto w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm">
+                                <Banknote className="text-[#D40000]" size={32} />
+                            </div>
+                            <h3 className="font-black text-[#D40000] text-lg uppercase tracking-widest">Tasa del Día</h3>
+                            <p className="text-xs text-red-600 font-bold mt-1">Obligatorio establecer tasa para operar hoy Sábado.</p>
+                        </div>
+                        <div className="p-8 space-y-6 flex flex-col items-center">
+                            <div className="w-full relative">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest text-center mb-2">Tasa de Cambio (VES por 1 USD)</label>
+                                <input 
+                                    type="number" step="0.01" autoFocus
+                                    value={saturdayManualRate} 
+                                    onChange={e => setSaturdayManualRate(e.target.value)} 
+                                    placeholder="Ej: 36.50"
+                                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-[#D40000] rounded-2xl font-black text-center text-3xl transition-all outline-none text-gray-800"
+                                />
+                            </div>
+                            <button 
+                                onClick={handleSaveSaturdayRate}
+                                disabled={!saturdayManualRate || savingSaturdayRate || Number(saturdayManualRate) <= 0}
+                                className="w-full py-4 bg-[#D40000] text-white rounded-xl font-black shadow-xl shadow-red-200 hover:shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:translate-y-0"
+                            >
+                                {savingSaturdayRate ? 'Guardando...' : 'Establecer Tasa'}
                             </button>
                         </div>
                     </div>

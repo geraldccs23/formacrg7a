@@ -42,13 +42,14 @@ import { PurchaseOrders } from './pages/PurchaseOrders';
 import { CashierClosing } from './pages/CashierClosing';
 import { Support } from './pages/Support';
 import { Commissions } from './pages/Commissions';
+import { CxcManagement } from './pages/CxcManagement';
 
-type View = 'dashboard' | 'inventory' | 'suppliers' | 'sales' | 'purchases' | 'sync' | 'settings' | 'fordmac' | 'income' | 'expenses' | 'banks' | 'admin_dashboard' | 'cashea' | 'customers' | 'internal_transfers' | 'purchase_orders' | 'cashier_closing' | 'support' | 'commissions';
+type View = 'dashboard' | 'inventory' | 'suppliers' | 'sales' | 'purchases' | 'sync' | 'settings' | 'fordmac' | 'income' | 'expenses' | 'banks' | 'admin_dashboard' | 'cashea' | 'customers' | 'cxc' | 'internal_transfers' | 'purchase_orders' | 'cashier_closing' | 'support' | 'commissions';
 export type Role = 'director' | 'supervisor' | 'cajero' | 'vendedor' | 'compras' | 'soporte';
 
 const rolePermissions: Record<Role, View[]> = {
-  director: ['dashboard', 'inventory', 'suppliers', 'sales', 'purchases', 'sync', 'settings', 'fordmac', 'income', 'expenses', 'banks', 'admin_dashboard', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
-  supervisor: ['dashboard', 'inventory', 'suppliers', 'purchases', 'admin_dashboard', 'income', 'expenses', 'banks', 'cashea', 'customers', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
+  director: ['dashboard', 'inventory', 'suppliers', 'sales', 'purchases', 'sync', 'settings', 'fordmac', 'income', 'expenses', 'banks', 'admin_dashboard', 'cashea', 'customers', 'cxc', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
+  supervisor: ['dashboard', 'inventory', 'suppliers', 'purchases', 'admin_dashboard', 'income', 'expenses', 'banks', 'cashea', 'customers', 'cxc', 'internal_transfers', 'purchase_orders', 'cashier_closing', 'support', 'commissions'],
   cajero: ['inventory', 'income', 'cashier_closing', 'support'],
   vendedor: ['inventory', 'income', 'support'],
   compras: ['inventory', 'purchases', 'fordmac', 'suppliers', 'purchase_orders', 'support'],
@@ -251,6 +252,7 @@ export default function App() {
           <NavItem icon={Landmark} label="Bancos" view="banks" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={ArrowLeftRight} label="Transf. Internas" view="internal_transfers" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={HistoryIcon} label="Cashea" view="cashea" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
+          <NavItem icon={Wallet} label="CxC / Créditos" view="cxc" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
           <NavItem icon={User} label="Agenda / Clientes" view="customers" activeView={activeView} isOpen={isSidebarOpen || window.innerWidth < 768} onClick={handleSetView} allowedRoles={['director', 'supervisor']} userRole={userRole} />
 
           {userRole === 'director' && (
@@ -315,7 +317,8 @@ export default function App() {
                         activeView === 'expenses' ? 'Egresos' :
                           activeView === 'banks' ? 'Bancos' :
                             activeView === 'cashea' ? 'Cuentas por Cobrar Cashea' :
-                              activeView === 'customers' ? 'Agenda de Clientes' :
+                              activeView === 'cxc' ? 'Gestión CxC (Créditos)' :
+                                activeView === 'customers' ? 'Agenda de Clientes' :
                                 activeView === 'admin_dashboard' ? 'Panel Administrativo' :
                                   activeView === 'dashboard' ? 'Dashboard Central' :
                                     activeView === 'settings' ? 'Configuración' :
@@ -365,7 +368,8 @@ export default function App() {
               {activeView === 'expenses' && <Expenses />}
               {activeView === 'banks' && <Banks />}
               {activeView === 'cashea' && <CasheaManagement />}
-              {activeView === 'customers' && <Customers />}
+              {activeView === 'cxc' && <CxcManagement />}
+              {activeView === 'customers' && <Customers onNavigate={setActiveView} />}
               {activeView === 'internal_transfers' && <InternalTransfers />}
               {activeView === 'purchase_orders' && <PurchaseOrders />}
               {activeView === 'cashier_closing' && <CashierClosing />}

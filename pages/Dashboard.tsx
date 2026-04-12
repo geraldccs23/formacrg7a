@@ -40,7 +40,7 @@ export function Dashboard({ userRole }: { userRole?: string }) {
   const [sellerRawData, setSellerRawData] = useState<any[]>([]);
   const [loadingSellers, setLoadingSellers] = useState(false);
 
-  const [auditModal, setAuditModal] = useState<{ open: boolean, title: string, data: any[], type: 'income' | 'sales_ne' }>({
+  const [auditModal, setAuditModal] = useState<{ open: boolean, title: string, data: any[], type: 'income' | 'sales_ne' | 'mixed' }>({
     open: false, title: '', data: [], type: 'income'
   });
 
@@ -161,31 +161,22 @@ export function Dashboard({ userRole }: { userRole?: string }) {
                   <span className="font-black text-gray-800 uppercase tracking-tighter text-lg">{b.name}</span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div 
-                    onClick={() => setAuditModal({ 
-                      open: true, 
-                      title: `Detalle Ingresos: ${b.name}`, 
-                      data: metrics.rawIncomes.filter((i: any) => i.branch === b.name),
-                      type: 'income'
-                    })}
+                    onClick={() => {
+                        const localIncomes = metrics.rawIncomes.filter((i: any) => i.branch === b.name).map((i: any) => ({...i, unified_type: 'income'}));
+                        const externalSales = metrics.rawSalesNE.filter((s: any) => (s.sucursal === '01' ? 'Boleita' : 'Sabana Grande') === b.name).map((s: any) => ({...s, unified_type: 'sales_ne'}));
+                        setAuditModal({ 
+                          open: true, 
+                          title: `Detalle Ventas Totales: ${b.name}`, 
+                          data: [...localIncomes, ...externalSales].sort((x, y) => new Date(y.unified_type === 'income' ? y.created_at : y.fecha_hora).getTime() - new Date(x.unified_type === 'income' ? x.created_at : x.fecha_hora).getTime()),
+                          type: 'mixed'
+                        });
+                    }}
                     className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all group"
                   >
-                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Cierre de Caja</span>
-                    <span className="text-2xl font-black text-emerald-900 tracking-tighter">${b.income.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
-
-                  <div 
-                    onClick={() => setAuditModal({ 
-                      open: true, 
-                      title: `Detalle Ventas NE: ${b.name}`, 
-                      data: metrics.rawSalesNE.filter((s: any) => (s.sucursal === '01' ? 'Boleita' : 'Sabana Grande') === b.name),
-                      type: 'sales_ne'
-                    })}
-                    className="p-4 bg-blue-50 rounded-2xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-all group"
-                  >
-                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ventas NE (Saint)</span>
-                    <span className="text-2xl font-black text-blue-900 tracking-tighter">${b.salesNE.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block mb-1">Ventas Totales</span>
+                    <span className="text-2xl font-black text-emerald-900 tracking-tighter">${(b.income + b.salesNE).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -193,11 +184,16 @@ export function Dashboard({ userRole }: { userRole?: string }) {
           </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard title={selectedMonth ? "Ventas Mes (NE)" : "Ventas Hoy (NE)"} value={`$${metrics.totalToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue={`${metrics.totalCountToday} Transacciones`} icon={TrendingUp} color="bg-blue-600" />
-        <StatCard title={selectedMonth ? "Compras Mes (SAINT)" : "Compras Hoy (SAINT)"} value={`$${metrics.totalPurchasesToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Entradas de Mercancía" icon={ShoppingCart} color="bg-orange-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+        <StatCard 
+            title={selectedMonth ? "Ventas Totales Mes" : "Ventas Totales Hoy"} 
+            value={`$${(metrics.totalToday + metrics.totalIncomeToday).toLocaleString('en-US', { minimumFractionDigits: 2 })}`} 
+            subValue={`${metrics.totalCountToday + metrics.rawIncomes.length} Transacciones`} 
+            icon={TrendingUp} 
+            color="bg-emerald-600" 
+        />
+        <StatCard title={selectedMonth ? "Compras Mes" : "Compras Hoy"} value={`$${metrics.totalPurchasesToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Entradas de Mercancía" icon={ShoppingCart} color="bg-orange-600" />
         <StatCard title="Total en Ordenes" value={`$${metrics.totalPendingPOs.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Pedidos Pendientes" icon={Target} color="bg-indigo-600" />
-        <StatCard title={selectedMonth ? "Cierre Mes (Ingresos)" : "Cierre Caja Hoy"} value={`$${metrics.totalIncomeToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}`} subValue="Ingresos Totales" icon={Wallet} color="bg-emerald-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
@@ -237,7 +233,7 @@ export function Dashboard({ userRole }: { userRole?: string }) {
           <div className="px-6 md:px-8 py-5 md:py-6 border-b flex items-center justify-between bg-gray-50/30">
             <h2 className="font-black text-gray-800 text-[10px] md:text-xs uppercase tracking-widest flex items-center gap-2">
               <RefreshCw className="text-orange-500" size={18} />
-              Últimos Eventos SAINT
+              Últimos Eventos del Servidor
             </h2>
           </div>
           <div className="p-4 md:p-6 space-y-3 md:space-y-4">
@@ -374,33 +370,43 @@ export function Dashboard({ userRole }: { userRole?: string }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {auditModal.data.map((item, idx) => (
+                  {auditModal.data.map((item, idx) => {
+                    const isIncome = auditModal.type === 'income' || item.unified_type === 'income';
+                    const docType = isIncome ? item.document_type : 'Nota de Entrega';
+                    const docNumber = isIncome ? item.document_number : item.num_nota;
+                    const customer = isIncome ? (item.customer_name || 'Sin Cliente') : 'Venta Externa';
+                    const date = new Date(isIncome ? item.created_at : item.fecha_hora);
+                    const sellerSuffix = (isIncome && item.sellers) ? ` • ${item.sellers.name}` : '';
+                    const rawTotal = isIncome ? item.total_amount : item.total_usd;
+                    const amount = Number(rawTotal) || 0;
+
+                    return (
                     <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                       <td className="py-4 px-2">
                         <div className="font-black text-sm text-gray-800">
-                          {auditModal.type === 'income' ? item.document_type : 'Nota de Entrega'}
+                          {docType}
                         </div>
                         <div className="text-[10px] font-bold text-gray-400 font-mono tracking-tighter">
-                          #{auditModal.type === 'income' ? item.document_number : item.num_nota}
+                          #{docNumber}
                         </div>
                       </td>
                       <td className="py-4 px-2">
                         <div className="text-xs font-bold text-gray-600 uppercase">
-                          {auditModal.type === 'income' ? (item.customer_name || 'Sin Cliente') : 'Venta Saint'}
+                          {customer}
                         </div>
                         <div className="text-[10px] text-gray-400">
-                          {new Date(auditModal.type === 'income' ? item.created_at : item.fecha_hora).toLocaleDateString()}
-                          {auditModal.type === 'income' && item.sellers && ` • ${item.sellers.name}`}
+                          {date.toLocaleDateString()}
+                          {sellerSuffix}
                         </div>
                       </td>
                       <td className="py-4 px-2 text-right">
-                        <span className={`text-lg font-black ${Number(auditModal.type === 'income' ? item.total_amount : item.total_usd) < 0 ? 'text-orange-600' : 'text-gray-900'}`}>
-                          ${Math.abs(Number(auditModal.type === 'income' ? item.total_amount : item.total_usd)).toFixed(2)}
-                          {Number(auditModal.type === 'income' ? item.total_amount : item.total_usd) < 0 && ' (DEV)'}
+                        <span className={`text-lg font-black ${amount < 0 ? 'text-orange-600' : 'text-gray-900'}`}>
+                          ${Math.abs(amount).toFixed(2)}
+                          {amount < 0 && ' (DEV)'}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                   {auditModal.data.length === 0 && (
                     <tr>
                       <td colSpan={3} className="py-12 text-center text-gray-400 font-bold uppercase text-[10px]">No se encontraron registros en este periodo.</td>
@@ -413,7 +419,7 @@ export function Dashboard({ userRole }: { userRole?: string }) {
             <div className="p-8 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Total Auditado ({auditModal.data.length} ítems)</span>
                <span className="text-3xl font-black text-gray-900 tracking-tighter">
-                  ${auditModal.data.reduce((acc, curr) => acc + (Number(auditModal.type === 'income' ? curr.total_amount : curr.total_usd)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  ${auditModal.data.reduce((acc, curr) => acc + (Number((auditModal.type === 'income' || curr.unified_type === 'income') ? curr.total_amount : curr.total_usd)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                </span>
             </div>
           </div>

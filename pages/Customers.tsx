@@ -8,10 +8,11 @@ interface CustomerStats {
     phone: string;
     total_spent: number;
     pending_cashea: number;
+    pending_cxc: number;
     last_purchase_date?: string;
 }
 
-export const Customers: React.FC = () => {
+export const Customers: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
     const [loading, setLoading] = useState(true);
     const [customers, setCustomers] = useState<CustomerStats[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,16 +28,34 @@ export const Customers: React.FC = () => {
             
             // Process the raw data into stats
             const stats: CustomerStats[] = data.map((c: any) => {
-                const totalSpent = c.incomes?.reduce((acc: number, inc: any) => acc + (Number(inc.total_amount) || 0), 0) || 0;
-                const pendingCashea = c.cashea_installments?.filter((inst: any) => inst.status === 'pending')
-                    .reduce((acc: number, inst: any) => acc + (Number(inst.amount_usd) || 0), 0) || 0;
+                const totalSpent = c.incomes?.reduce((acc: number, inc: any) => acc + ((inc.type === 'Devolucion' ? -1 : 1) * (Number(inc.total_amount) || 0)), 0) || 0;
+                
+                let pendingCashea = 0;
+                let pendingCxc = 0;
+
+                c.incomes?.forEach((inc: any) => {
+                    // Cxc logic
+                    if (inc.payment_condition === 'Credito') {
+                        const amount = Number(inc.total_amount) || 0;
+                        const payments = inc.income_payments?.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0) || 0;
+                        pendingCxc += (amount - payments);
+                    }
+                    
+                    // Cashea logic
+                    inc.cashea_installments?.forEach((inst: any) => {
+                        if (inst.status === 'pending') {
+                            pendingCashea += (Number(inst.amount_usd) || 0);
+                        }
+                    });
+                });
                 
                 return {
                     id: c.id,
                     name: c.name,
                     phone: c.phone || 'N/A',
                     total_spent: totalSpent,
-                    pending_cashea: pendingCashea
+                    pending_cashea: pendingCashea,
+                    pending_cxc: pendingCxc
                 };
             });
 
@@ -78,10 +97,19 @@ export const Customers: React.FC = () => {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cartera en Riesgo (Cashea)</p>
-                        <p className="text-3xl font-black text-[#D40000]">${customers.reduce((acc, c) => acc + c.pending_cashea, 0).toFixed(2)}</p>
+                        <p className="text-3xl font-black text-[#D40000]">${customers.reduce((acc, c) => acc + c.pending_cashea, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                     </div>
-                    <div className="w-12 h-12 bg-red-50 text-[#D40000] rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-red-50 text-[#D40000] rounded-xl flex items-center justify-center cursor-pointer hover:bg-red-100 transition-colors" onClick={() => onNavigate?.('cashea')}>
                         <History size={24} />
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cartera Libre (Créditos)</p>
+                        <p className="text-3xl font-black text-orange-600">${customers.reduce((acc, c) => acc + c.pending_cxc, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center cursor-pointer hover:bg-orange-100 transition-colors" onClick={() => onNavigate?.('cxc')}>
+                        <DollarSign size={24} />
                     </div>
                 </div>
             </div>
@@ -138,6 +166,12 @@ export const Customers: React.FC = () => {
                                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter mb-1">Deuda Cashea</p>
                                         <p className={`text-sm font-black ${customer.pending_cashea > 0 ? 'text-[#D40000]' : 'text-emerald-600'}`}>
                                             ${customer.pending_cashea.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter mb-1">Deuda Crédito (CxC)</p>
+                                        <p className={`text-sm font-black ${customer.pending_cxc > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                            ${Math.max(customer.pending_cxc, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                         </p>
                                     </div>
                                 </div>

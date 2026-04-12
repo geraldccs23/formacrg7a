@@ -79,15 +79,15 @@ export function SyncLogs() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
           <h3 className="font-black text-gray-800 text-sm uppercase tracking-tight mb-6 flex items-center gap-2">
-            <AlertCircle className="text-[#D40000]" size={20} /> Incidencias SAINT
+            <AlertCircle className="text-[#D40000]" size={20} /> Incidencias del Sistema Remoto
           </h3>
           <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100">
             <div className="text-[10px] text-red-800 font-mono leading-relaxed">
               <strong className="font-black">[CRITICAL_ERROR]</strong> 2023-11-10 10:30:01<br/>
               <strong>Code:</strong> 408_REQUEST_TIMEOUT<br/>
-              <strong>Target:</strong> https://saint-api.rg7.com/v1/inventory/adjustment<br/>
-              <strong>Trace:</strong> at SaintSyncQueue.processItem (core/queue.js:88:14)<br/>
-              <span className="mt-2 block bg-white/50 p-2 rounded border border-red-100 italic">El servidor SAINT no respondió en los 5000ms configurados. Evento en cola para reintento automático.</span>
+              <strong>Target:</strong> https://sys-api.rg7.com/v1/inventory/adjustment<br/>
+              <strong>Trace:</strong> at RemoteSyncQueue.processItem (core/queue.js:88:14)<br/>
+              <span className="mt-2 block bg-white/50 p-2 rounded border border-red-100 italic">El servidor remoto no respondió en los 5000ms configurados. Evento en cola para reintento automático.</span>
             </div>
           </div>
         </div>
