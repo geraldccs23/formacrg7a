@@ -6,9 +6,12 @@ export function Commissions() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBranch, setSelectedBranch] = useState('ALL');
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | ''>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
   const [commissionRate, setCommissionRate] = useState<number>(1.0); // 1% default
+  const [activeTab, setActiveTab] = useState<'weekly' | 'performance'>('weekly');
 
   const months = [
     { id: 1, name: 'Enero' }, { id: 2, name: 'Febrero' }, { id: 3, name: 'Marzo' },
@@ -19,12 +22,18 @@ export function Commissions() {
 
   useEffect(() => {
     loadMetrics();
-  }, [selectedMonth, selectedYear, selectedBranch]);
+  }, [selectedMonth, selectedYear, selectedBranch, customStart, customEnd]);
 
   async function loadMetrics() {
     setLoading(true);
     try {
-      const data = await dbService.getWeeklyCommissionMetrics(selectedMonth, selectedYear, selectedBranch);
+      const data = await dbService.getWeeklyCommissionMetrics(
+        selectedMonth === '' ? undefined : selectedMonth, 
+        selectedYear, 
+        selectedBranch,
+        customStart || undefined,
+        customEnd || undefined
+      );
       setMetrics(data);
     } catch (e) {
       console.error(e);
@@ -53,9 +62,10 @@ export function Commissions() {
           <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
             <select 
               value={selectedMonth} 
-              onChange={e => setSelectedMonth(Number(e.target.value))}
+              onChange={e => { setSelectedMonth(e.target.value === '' ? '' : Number(e.target.value)); setCustomStart(''); setCustomEnd(''); }}
               className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none px-2 py-1 text-gray-600 focus:text-[#D40000] cursor-pointer"
             >
+              <option value="">-- Periodo --</option>
               {months.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
             <div className="w-px h-4 bg-gray-200"></div>
@@ -66,6 +76,24 @@ export function Commissions() {
             >
               {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
+            <span className="text-[9px] font-black text-gray-400 ml-1">DESDE</span>
+            <input 
+              type="date" 
+              value={customStart} 
+              onChange={e => { setCustomStart(e.target.value); setSelectedMonth(''); }}
+              className="bg-transparent text-[10px] font-bold outline-none text-gray-600 focus:text-[#D40000]"
+            />
+            <div className="w-px h-4 bg-gray-200"></div>
+            <span className="text-[9px] font-black text-gray-400">HASTA</span>
+            <input 
+              type="date" 
+              value={customEnd} 
+              onChange={e => { setCustomEnd(e.target.value); setSelectedMonth(''); }}
+              className="bg-transparent text-[10px] font-bold outline-none text-gray-600 focus:text-[#D40000]"
+            />
           </div>
 
           <div className="flex bg-gray-50 p-1 rounded-2xl gap-1 overflow-x-auto no-scrollbar">
@@ -132,81 +160,143 @@ export function Commissions() {
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden relative">
-        {loading && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-md flex items-center justify-center z-50">
-            <div className="flex flex-col items-center gap-4">
-              <RefreshCw className="animate-spin text-[#D40000]" size={40} />
-              <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] animate-pulse">Calculando Comisiones</p>
-            </div>
-          </div>
-        )}
-
-        <div className="p-8 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
-            <h3 className="text-lg font-black text-gray-800 tracking-tighter uppercase flex items-center gap-2">
-                Resumen Semanal por Vendedor
-                <span className="bg-red-100 text-[#D40000] text-[9px] px-2 py-0.5 rounded-full">AUDITORÍA</span>
-            </h3>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valores expresados en USD ($)</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-6 px-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">Vendedor</th>
-                <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 1</th>
-                <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 2</th>
-                <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 3</th>
-                <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 4+</th>
-                <th className="py-6 px-6 text-[10px] font-black text-[#D40000] uppercase tracking-widest text-right bg-red-50/30">Total Ventas</th>
-                <th className="py-6 px-8 text-[10px] font-black text-emerald-600 uppercase tracking-widest text-right bg-emerald-50/30">Comisión</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {metrics.map((m, idx) => (
-                <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="py-5 px-8">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-gray-200 group-hover:bg-[#D40000] transition-colors">{m.name.substring(0,2)}</div>
-                        <span className="text-sm font-black text-gray-700 tracking-tight group-hover:text-gray-900">{m.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-5 px-4 text-right">
-                    <span className="text-sm font-bold text-gray-500">${m.w1.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </td>
-                  <td className="py-5 px-4 text-right">
-                    <span className="text-sm font-bold text-gray-500">${m.w2.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </td>
-                  <td className="py-5 px-4 text-right">
-                    <span className="text-sm font-bold text-gray-500">${m.w3.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </td>
-                  <td className="py-5 px-4 text-right">
-                    <span className="text-sm font-bold text-gray-500">${m.w4.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </td>
-                  <td className="py-5 px-6 text-right bg-red-50/10">
-                    <span className="text-base font-black text-gray-900 tracking-tighter">${m.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </td>
-                  <td className="py-5 px-8 text-right bg-emerald-50/10">
-                    <span className="text-lg font-black text-emerald-700 tracking-tighter">
-                      ${(m.total * (commissionRate / 100)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <button className="ml-3 p-1 rounded-lg bg-emerald-100 text-emerald-600 opacity-0 group-hover:opacity-100 transition-all hover:bg-emerald-600 hover:text-white">
-                        <ArrowUpRight size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {metrics.length === 0 && !loading && (
-                <tr>
-                   <td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase text-xs italic tracking-[0.2em]">Seleccione un periodo con ventas registradas</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="flex bg-white/50 p-1.5 rounded-2xl w-fit border border-gray-100 shadow-sm self-center">
+            <button 
+                onClick={() => setActiveTab('weekly')}
+                className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'weekly' ? 'bg-[#D40000] text-white shadow-xl shadow-red-500/20' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+                Ventas Semanales
+            </button>
+            <button 
+                onClick={() => setActiveTab('performance')}
+                className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'performance' ? 'bg-[#D40000] text-white shadow-xl shadow-red-500/20' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+                Métricas de Rendimiento
+            </button>
       </div>
+
+      {/* Main Content Render */}
+      {activeTab === 'weekly' ? (
+        /* Weekly View */
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden relative">
+          {loading && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-md flex items-center justify-center z-50">
+              <div className="flex flex-col items-center gap-4">
+                <RefreshCw className="animate-spin text-[#D40000]" size={40} />
+                <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] animate-pulse">Calculando Comisiones</p>
+              </div>
+            </div>
+          )}
+
+          <div className="p-8 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
+              <h3 className="text-lg font-black text-gray-800 tracking-tighter uppercase flex items-center gap-2">
+                  Resumen Semanal por Vendedor
+                  <span className="bg-red-100 text-[#D40000] text-[9px] px-2 py-0.5 rounded-full">AUDITORÍA</span>
+              </h3>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valores expresados en USD ($)</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-6 px-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">Vendedor</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 1</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 2</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 3</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Semana 4+</th>
+                  <th className="py-6 px-6 text-[10px] font-black text-[#D40000] uppercase tracking-widest text-right bg-red-50/30">Total Ventas</th>
+                  <th className="py-6 px-8 text-[10px] font-black text-emerald-600 uppercase tracking-widest text-right bg-emerald-50/30">Comisión</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {metrics.map((m, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="py-5 px-8">
+                      <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-gray-200 group-hover:bg-[#D40000] transition-colors">{m.name.substring(0,2)}</div>
+                          <span className="text-sm font-black text-gray-700 tracking-tight group-hover:text-gray-900">{m.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-sm font-bold text-gray-500">${m.w1.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-sm font-bold text-gray-500">${m.w2.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-sm font-bold text-gray-500">${m.w3.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-sm font-bold text-gray-500">${m.w4.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-6 text-right bg-red-50/10">
+                      <span className="text-base font-black text-gray-900 tracking-tighter">${m.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-8 text-right bg-emerald-50/10">
+                      <span className="text-lg font-black text-emerald-700 tracking-tighter">
+                        ${(m.total * (commissionRate / 100)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Performance View */
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden relative">
+          <div className="p-8 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
+              <h3 className="text-lg font-black text-gray-800 tracking-tighter uppercase flex items-center gap-2">
+                  Rendimiento y Auditoría por Vendedor
+                  <span className="bg-red-100 text-[#D40000] text-[9px] px-2 py-0.5 rounded-full">ESTADÍSTICAS</span>
+              </h3>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-6 px-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-left">Vendedor</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">N° Operaciones</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-indigo-600 uppercase tracking-widest text-right">Ticket Promedio</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-purple-600 uppercase tracking-widest text-right">Cashea (Total)</th>
+                  <th className="py-6 px-4 text-[10px] font-black text-green-600 uppercase tracking-widest text-right">Contado (Total)</th>
+                  <th className="py-6 px-8 text-[10px] font-black text-gray-700 uppercase tracking-widest text-right">Total Facturado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {metrics.map((m, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="py-5 px-8">
+                       <span className="text-sm font-black text-gray-700 tracking-tight">{m.name}</span>
+                    </td>
+                    <td className="py-5 px-4 text-center">
+                      <span className="text-sm font-black text-gray-800 bg-gray-100 px-3 py-1 rounded-full">{m.count}</span>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-base font-black text-indigo-600 tracking-tighter">${m.avgTicket.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-purple-600">${m.cashea_total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">{m.cashea_count} Operaciones</span>
+                      </div>
+                    </td>
+                    <td className="py-5 px-4 text-right">
+                      <span className="text-sm font-bold text-green-600">${m.cash_total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                    <td className="py-5 px-8 text-right">
+                      <span className="text-xl font-black text-gray-900 tracking-tighter">${m.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

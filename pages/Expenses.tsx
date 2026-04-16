@@ -36,7 +36,7 @@ export function Expenses() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
 
-    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia'];
+    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia', 'Zelle'];
     const requiresBank = ['Punto de Venta', 'Pago Móvil', 'Transferencia'];
     const recipientTypes = ['Proveedor', 'Servicios', 'Persona Natural', 'Nómina', 'Alquileres', 'Otro'];
 

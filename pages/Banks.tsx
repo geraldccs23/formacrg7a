@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Landmark, Plus, CreditCard, Building2, Search, ArrowRight, Loader2, RefreshCw, CheckCircle, XCircle, DollarSign, Clock, Edit2, Trash2 } from 'lucide-react';
+import { Landmark, Plus, CreditCard, Building2, Search, ArrowRight, ArrowUpRight, Loader2, RefreshCw, CheckCircle, XCircle, DollarSign, Clock, Edit2, Trash2 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { dbService } from '../services/dbService';
 import { Bank, BankAccount, BankInitialBalance, BranchType } from '../types';
@@ -20,6 +20,13 @@ export function Banks() {
     const [banks, setBanks] = useState<Bank[]>([]);
     const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
+
+    const [isExtraordinaryModalOpen, setIsExtraordinaryModalOpen] = useState(false);
+    const [extraordinaryAmount, setExtraordinaryAmount] = useState('');
+    const [extraordinaryAmountBs, setExtraordinaryAmountBs] = useState('');
+    const [extraordinaryConcept, setExtraordinaryConcept] = useState('');
+    const [extraordinaryProvider, setExtraordinaryProvider] = useState('');
+    const [savingExtraordinary, setSavingExtraordinary] = useState(false);
 
     const [loadingBanks, setLoadingBanks] = useState(true);
     const [loadingAccounts, setLoadingAccounts] = useState(false);
@@ -159,7 +166,7 @@ export function Banks() {
             setIsInitialBalanceModalOpen(false);
             setInitialBalanceAmount('');
             setInitialBalanceAmountBs('');
-            alert('Saldo inicial cargado con éxito. Se ha notificado al director.');
+            alert('Saldo inicial cargado con éxito en Bolívares.');
             if (userRole === 'director') fetchPendingBalances(userRole);
             if (selectedBank) fetchAccounts(selectedBank.code);
         } catch (error) {
@@ -176,6 +183,39 @@ export function Banks() {
             if (selectedBank) fetchAccounts(selectedBank.code);
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const handleCreateExtraordinaryIncome = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!activeAccountForBalance || (!extraordinaryAmount && !extraordinaryAmountBs) || !extraordinaryConcept || !extraordinaryProvider) return;
+        
+        const finalAmountBs = extraordinaryAmountBs ? parseFloat(extraordinaryAmountBs) : (parseFloat(extraordinaryAmount) * exchangeRate);
+        const finalAmountUsd = extraordinaryAmount ? parseFloat(extraordinaryAmount) : (parseFloat(extraordinaryAmountBs) / exchangeRate);
+        
+        setSavingExtraordinary(true);
+        try {
+            await dbService.createAccountPayable({
+                branch: activeAccountForBalance.sucursal,
+                provider_name: extraordinaryProvider,
+                amount: finalAmountUsd,
+                amount_bs: finalAmountBs,
+                concept: extraordinaryConcept,
+                bank_account_id: activeAccountForBalance.id,
+                exchange_rate: exchangeRate
+            });
+            
+            setIsExtraordinaryModalOpen(false);
+            setExtraordinaryAmount('');
+            setExtraordinaryAmountBs('');
+            setExtraordinaryConcept('');
+            setExtraordinaryProvider('');
+            alert('Ingreso extraordinario registrado. Se ha creado una Cuenta por Pagar para seguimiento en Bs y USD.');
+            if (selectedBank) fetchAccounts(selectedBank.code);
+        } catch (error: any) {
+            alert('Error: ' + error.message);
+        } finally {
+            setSavingExtraordinary(false);
         }
     };
 
@@ -460,19 +500,31 @@ export function Banks() {
                                                     </div>
                                                     <div className="mt-5 pt-4 border-t border-gray-100 flex justify-between items-end">
                                                         <div>
-                                                            <span className="text-sm font-medium text-gray-500 block mb-1">Saldo Actual</span>
+                                                            <span className="text-sm font-medium text-gray-500 block mb-1 uppercase tracking-widest text-[9px]">Saldo Real (Bs.)</span>
                                                             <span className="font-black text-2xl tracking-tighter text-[#D40000]">
-                                                                ${Number(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                                {Number(account.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs.
                                                             </span>
+                                                            <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">
+                                                                Eqv. Ref: ${(Number(account.balance || 0) / (exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+                                                            </p>
                                                         </div>
                                                         {(userRole === 'director' || userRole === 'supervisor') && (
-                                                            <button 
-                                                                onClick={() => { setActiveAccountForBalance(account); setIsInitialBalanceModalOpen(true); }}
-                                                                className="p-2 bg-green-50 text-green-600 hover:text-green-700 hover:bg-green-100 rounded-lg transition-all border border-green-200 animate-pulse"
-                                                                title="Establecer Saldo Inicial"
-                                                            >
-                                                                <DollarSign size={20} />
-                                                            </button>
+                                                            <div className="flex gap-2">
+                                                                <button 
+                                                                    onClick={() => { setActiveAccountForBalance(account); setIsInitialBalanceModalOpen(true); }}
+                                                                    className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-all border border-green-200"
+                                                                    title="Establecer Saldo Inicial"
+                                                                >
+                                                                    <DollarSign size={20} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => { setActiveAccountForBalance(account); setIsExtraordinaryModalOpen(true); }}
+                                                                    className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-all border border-blue-200"
+                                                                    title="Ingreso Extraordinario (Préstamo)"
+                                                                >
+                                                                    <ArrowUpRight size={20} />
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -787,6 +839,100 @@ export function Banks() {
                             <div className="pt-4 flex gap-3">
                                 <button type="button" onClick={() => setIsEditAccountModalOpen(false)} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-bold transition-colors">Cancelar</button>
                                 <button type="submit" className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 transition-colors">Actualizar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isExtraordinaryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+                        <div className="px-8 py-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white relative">
+                            <div className="relative z-10">
+                                <h3 className="text-xl font-black uppercase tracking-tight">Ingreso Extraordinario</h3>
+                                <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Créditos / Préstamos Bancarios</p>
+                            </div>
+                            <CreditCard className="absolute right-6 top-1/2 -translate-y-1/2 opacity-20 transform scale-150" size={48} />
+                        </div>
+                        <form onSubmit={handleCreateExtraordinaryIncome} className="p-8 space-y-5">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Ente Emisor / Proveedor</label>
+                                <input 
+                                    type="text"
+                                    value={extraordinaryProvider}
+                                    onChange={e => setExtraordinaryProvider(e.target.value)}
+                                    placeholder="Ej: Banco Mercantil / Socio X"
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 text-sm font-bold text-gray-700 outline-none transition-all"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Concepto del Ingreso</label>
+                                <input 
+                                    type="text"
+                                    value={extraordinaryConcept}
+                                    onChange={e => setExtraordinaryConcept(e.target.value)}
+                                    placeholder="Ej: Crédito para expansión de inventario"
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 text-sm font-bold text-gray-700 outline-none transition-all"
+                                    required
+                                />
+                            </div>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest text-blue-600">Monto en Bolívares (VES)</label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-xs">Bs</div>
+                                        <input 
+                                            type="number" step="0.01"
+                                            value={extraordinaryAmountBs}
+                                            onChange={e => {
+                                                const bs = e.target.value;
+                                                setExtraordinaryAmountBs(bs);
+                                                if (bs && exchangeRate) setExtraordinaryAmount((Number(bs) / exchangeRate).toFixed(2));
+                                                else setExtraordinaryAmount('');
+                                            }}
+                                            placeholder="0.00"
+                                            className="w-full pl-10 pr-4 py-4 bg-blue-50/20 border border-blue-50 rounded-2xl focus:ring-2 focus:ring-blue-500/20 text-lg font-black text-gray-800 outline-none transition-all placeholder:text-gray-200"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest text-[#D40000]">Ref. en Dólares ($)</label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-lg">$</div>
+                                        <input 
+                                            type="number" step="0.01"
+                                            value={extraordinaryAmount}
+                                            onChange={e => {
+                                                const usd = e.target.value;
+                                                setExtraordinaryAmount(usd);
+                                                if (usd && exchangeRate) setExtraordinaryAmountBs((Number(usd) * exchangeRate).toFixed(2));
+                                                else setExtraordinaryAmountBs('');
+                                            }}
+                                            placeholder="0.00"
+                                            className="w-full pl-9 pr-4 py-4 bg-red-50/20 border border-red-50 rounded-2xl focus:ring-2 focus:ring-red-500/20 text-lg font-black text-gray-800 outline-none transition-all placeholder:text-gray-200"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsExtraordinaryModalOpen(false)}
+                                    className="flex-1 px-6 py-4 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 font-black text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingExtraordinary}
+                                    className="flex-[2] px-6 py-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-500/30 font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                >
+                                    {savingExtraordinary ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+                                    Registrar Crédito
+                                </button>
                             </div>
                         </form>
                     </div>

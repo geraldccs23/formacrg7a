@@ -34,7 +34,7 @@ export const CxcManagement: React.FC = () => {
     const [bankAccounts, setBankAccounts] = useState<any[]>([]);
     const [processingPayment, setProcessingPayment] = useState(false);
 
-    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia'];
+    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia', 'Zelle'];
     const requiresBank = ['Punto de Venta', 'Pago Móvil', 'Transferencia'];
 
     useEffect(() => {
@@ -125,7 +125,7 @@ export const CxcManagement: React.FC = () => {
         
         let amountBs = 0;
         let finalExchangeRate = 1;
-        if (paymentType !== 'Efectivo $' && paymentType !== 'ZELLE') {
+        if (paymentType !== 'Efectivo $' && paymentType !== 'Zelle') {
             finalExchangeRate = exchangeRate;
             amountBs = Number(paymentAmount) * exchangeRate;
         }
@@ -172,19 +172,6 @@ export const CxcManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
-                            <Wallet size={24} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Cartera CxC (USD)</p>
-                            <p className="text-2xl font-black text-gray-800">
-                                ${debts.reduce((acc, d) => acc + d.total_pending, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                             <DollarSign size={24} />
                         </div>
@@ -192,6 +179,19 @@ export const CxcManagement: React.FC = () => {
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Cartera CxC (BS)</p>
                             <p className="text-2xl font-black text-emerald-600">
                                 Bs. {(debts.reduce((acc, d) => acc + d.total_pending, 0) * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
+                            <Wallet size={24} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Cartera CxC (USD)</p>
+                            <p className="text-2xl font-black text-gray-800">
+                                ${debts.reduce((acc, d) => acc + d.total_pending, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </p>
                         </div>
                     </div>
@@ -336,7 +336,7 @@ export const CxcManagement: React.FC = () => {
                                 </div>
                             )}
 
-                            {(paymentType !== 'Efectivo $' && paymentAmount) && (
+                            {(paymentType !== 'Efectivo $' && paymentType !== 'Zelle' && paymentAmount) && (
                                 <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex items-center justify-between">
                                     <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Conversión Estimada</span>
                                     <span className="font-black text-orange-800">Bs. {(Number(paymentAmount) * exchangeRate).toLocaleString('es-VE', {minimumFractionDigits: 2})}</span>

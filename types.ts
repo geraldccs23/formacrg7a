@@ -235,3 +235,27 @@ export interface SupportTicket {
   creator_email?: string;
   assigned_email?: string;
 }
+
+export interface AccountPayable {
+  id: number;
+  branch: BranchType;
+  provider_name: string;
+  amount: number;
+  amount_bs: number;
+  concept: string;
+  bank_account_id: number;
+  status: 'pending' | 'paid';
+  exchange_rate: number;
+  created_at: string;
+}
+
+export interface PayablePayment {
+  id: number;
+  payable_id: number;
+  amount: number;
+  amount_bs: number;
+  payment_type: string;
+  exchange_rate: number;
+  bank_account_id?: number;
+  created_at: string;
+}

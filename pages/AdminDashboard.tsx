@@ -126,24 +126,27 @@ export function AdminDashboard() {
                 <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-xl shadow-green-500/20 text-white relative overflow-hidden group">
                     <TrendingUp className="absolute -right-6 -top-6 text-white/10 group-hover:scale-110 transition-transform duration-500" size={140} />
                     <div className="relative z-10">
-                        <div className="text-green-100 font-bold text-sm tracking-wider uppercase mb-1">Ingresos Globales</div>
-                        <div className="text-4xl font-black tracking-tight">${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        <div className="text-green-100 font-bold text-sm tracking-wider uppercase mb-1">Ingresos Globales (Bs.)</div>
+                        <div className="text-4xl font-black tracking-tight">Bs. {(totalIncome * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
+                        <p className="text-[10px] font-bold text-green-200 mt-1 uppercase">Eqv: ${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</p>
                     </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 shadow-xl shadow-red-500/20 text-white relative overflow-hidden group">
                     <TrendingDown className="absolute -right-6 -top-6 text-white/10 group-hover:scale-110 transition-transform duration-500" size={140} />
                     <div className="relative z-10">
-                        <div className="text-red-100 font-bold text-sm tracking-wider uppercase mb-1">Egresos Globales</div>
-                        <div className="text-4xl font-black tracking-tight">${totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        <div className="text-red-100 font-bold text-sm tracking-wider uppercase mb-1">Egresos Globales (Bs.)</div>
+                        <div className="text-4xl font-black tracking-tight">Bs. {(totalExpense * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
+                        <p className="text-[10px] font-bold text-red-200 mt-1 uppercase">Eqv: ${totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</p>
                     </div>
                 </div>
 
                 <div className={`bg-gradient-to-br rounded-2xl p-6 shadow-xl text-white relative overflow-hidden group ${netBalance >= 0 ? 'from-gray-800 to-black shadow-gray-900/20' : 'from-orange-500 to-red-600 shadow-orange-500/20'}`}>
                     <Wallet className="absolute -right-6 -top-6 text-white/10 group-hover:scale-110 transition-transform duration-500" size={140} />
                     <div className="relative z-10">
-                        <div className="text-gray-300 font-bold text-sm tracking-wider uppercase mb-1">Balance Consolidado</div>
-                        <div className="text-4xl font-black tracking-tight">${netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        <div className="text-gray-300 font-bold text-sm tracking-wider uppercase mb-1">Balance Consolidado (Bs.)</div>
+                        <div className="text-4xl font-black tracking-tight">Bs. {(netBalance * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
+                        <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-widest">Eqv: ${netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</p>
                     </div>
                 </div>
             </div>
@@ -175,8 +178,9 @@ export function AdminDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className={`text-xl sm:text-lg font-black tracking-tight self-start sm:self-auto pl-14 sm:pl-0 ${activity.type === 'income' ? 'text-green-600' : 'text-[#D40000]'}`}>
-                                        {activity.type === 'income' ? '+' : '-'}${activity.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    <div className={`text-right ${activity.type === 'income' ? 'text-green-600' : 'text-[#D40000]'}`}>
+                                        <div className="text-lg font-black tracking-tight">{activity.type === 'income' ? '+' : '-'} Bs. {(activity.amount * (activity.type === 'income' ? exchangeRate : (activity as any).exchange_rate || exchangeRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-[10px] font-bold text-gray-400 uppercase">Eqv: ${activity.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</div>
                                     </div>
                                 </div>
                             )) : (
@@ -237,13 +241,13 @@ export function AdminDashboard() {
                                             <div>
                                                 <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider">{method}</div>
                                                 <div className="text-lg font-black text-gray-800">
-                                                    ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                    {(amount * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })} Bs.
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Equiv. Bs.</div>
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Ref. USD</div>
                                                 <div className="text-xs font-bold text-gray-500">
-                                                    {(amount * exchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                    ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                 </div>
                                             </div>
                                         </div>
@@ -266,7 +270,10 @@ export function AdminDashboard() {
                                         <span className="font-bold text-gray-800">{bank.banks.name}</span>
                                         <span className="text-[10px] text-gray-500 font-medium">REF: {bank.reference}</span>
                                     </div>
-                                    <span className="font-black text-gray-700">${Number(bank.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                    <div className="text-right">
+                                        <div className="font-black text-gray-700">Bs. {(Number(bank.balance) * (exchangeRate || 1)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-[9px] font-bold text-gray-400 tracking-tighter uppercase leading-none">Eqv. ${Number(bank.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

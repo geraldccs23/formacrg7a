@@ -837,9 +837,23 @@ export const dbService = {
     if (error) throw error;
   },
 
-  async getWeeklyCommissionMetrics(month: number, year: number, branch: string = 'ALL'): Promise<any[]> {
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
+  async getWeeklyCommissionMetrics(month?: number, year?: number, branch: string = 'ALL', customStart?: string, customEnd?: string): Promise<any[]> {
+    let start: Date;
+    let end: Date;
+
+    if (customStart && customEnd) {
+      start = new Date(customStart);
+      end = new Date(customEnd);
+      end.setHours(23, 59, 59, 999);
+    } else if (month && year) {
+      start = new Date(year, month - 1, 1);
+      end = new Date(year, month, 0, 23, 59, 59);
+    } else {
+      // Default to current month
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
     
     const query = supabase
       .from('incomes')
@@ -855,21 +869,45 @@ export const dbService = {
     incomes?.forEach(i => {
       const name = i.sellers?.name || 'Varios / Otros';
       if (!sellersMap[name]) {
-        sellersMap[name] = { name, w1: 0, w2: 0, w3: 0, w4: 0, total: 0 };
+        sellersMap[name] = { 
+          name, 
+          w1: 0, w1_count: 0,
+          w2: 0, w2_count: 0,
+          w3: 0, w3_count: 0,
+          w4: 0, w4_count: 0,
+          total: 0, 
+          count: 0,
+          avgTicket: 0,
+          cashea_count: 0,
+          cashea_total: 0,
+          cash_total: 0
+        };
       }
       
       const date = new Date(i.created_at).getDate();
       const amount = Number(i.total_amount);
+      const isCashea = i.payment_condition?.toLowerCase().includes('cashea') || false;
       
-      if (date <= 7) sellersMap[name].w1 += amount;
-      else if (date <= 14) sellersMap[name].w2 += amount;
-      else if (date <= 21) sellersMap[name].w3 += amount;
-      else sellersMap[name].w4 += amount;
+      if (date <= 7) { sellersMap[name].w1 += amount; sellersMap[name].w1_count++; }
+      else if (date <= 14) { sellersMap[name].w2 += amount; sellersMap[name].w2_count++; }
+      else if (date <= 21) { sellersMap[name].w3 += amount; sellersMap[name].w3_count++; }
+      else { sellersMap[name].w4 += amount; sellersMap[name].w4_count++; }
       
       sellersMap[name].total += amount;
+      sellersMap[name].count++;
+      
+      if (isCashea) {
+        sellersMap[name].cashea_count++;
+        sellersMap[name].cashea_total += amount;
+      } else {
+        sellersMap[name].cash_total += amount;
+      }
     });
 
-    return Object.values(sellersMap).sort((a, b) => b.total - a.total);
+    return Object.values(sellersMap).map(s => ({
+      ...s,
+      avgTicket: s.count > 0 ? s.total / s.count : 0
+    })).sort((a, b) => b.total - a.total);
   },
 
   async getSellers() {
@@ -895,5 +933,32 @@ export const dbService = {
     
     // We swallow conflict errors if another user just inserted it
     if (error && error.code !== '23505') throw error;
+  },
+
+  // Accounts Payable
+  async getAccountsPayable(): Promise<(AccountPayable & { payable_payments: PayablePayment[], bank_accounts: any })[]> {
+    const { data, error } = await supabase
+      .from('accounts_payable')
+      .select('*, payable_payments(*), bank_accounts(*, banks(name))')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createAccountPayable(payable: Omit<AccountPayable, 'id' | 'created_at' | 'status'>): Promise<AccountPayable> {
+    const { data, error } = await supabase
+      .from('accounts_payable')
+      .insert([{ ...payable, status: 'pending' }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async registerPayablePayment(payment: Omit<PayablePayment, 'id' | 'created_at'>): Promise<void> {
+    const { error } = await supabase
+      .from('payable_payments')
+      .insert([payment]);
+    if (error) throw error;
   }
 };

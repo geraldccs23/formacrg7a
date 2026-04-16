@@ -96,19 +96,6 @@ export const CasheaManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-red-50 text-[#D40000] rounded-xl flex items-center justify-center">
-                            <Wallet size={24} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total por Cobrar (USD)</p>
-                            <p className="text-2xl font-black text-gray-800">
-                                ${debts.reduce((acc, d) => acc + d.total_usd, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                             <DollarSign size={24} />
                         </div>
@@ -116,6 +103,19 @@ export const CasheaManagement: React.FC = () => {
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total por Cobrar (BS)</p>
                             <p className="text-2xl font-black text-emerald-600">
                                 Bs. {(debts.reduce((acc, d) => acc + d.total_usd, 0) * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-red-50 text-[#D40000] rounded-xl flex items-center justify-center">
+                            <Wallet size={24} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total por Cobrar (USD)</p>
+                            <p className="text-2xl font-black text-gray-800">
+                                ${debts.reduce((acc, d) => acc + d.total_usd, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </p>
                         </div>
                     </div>

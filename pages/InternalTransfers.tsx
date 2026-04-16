@@ -219,8 +219,11 @@ export function InternalTransfers() {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <span className="text-lg font-black text-gray-800 tracking-tighter">
-                                                        ${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        Bs. {(t.amount * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
                                                     </span>
+                                                    <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-tighter">
+                                                        Eqv: ${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+                                                    </p>
                                                 </td>
                                             </tr>
                                         ))}
@@ -278,7 +281,10 @@ export function InternalTransfers() {
                                     {fromAccount && (
                                         <div className="flex justify-between px-1">
                                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Saldo Disp:</span>
-                                            <span className="text-xs font-black text-red-500">${Number(fromAccount.balance).toLocaleString('en-US')}</span>
+                                            <div className="text-right flex flex-col items-end">
+                                                <span className="text-xs font-black text-red-500">Bs. {(Number(fromAccount.balance) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Eqv: ${ (Number(fromAccount.balance) / (exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2 }) } USD</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -316,7 +322,10 @@ export function InternalTransfers() {
                                     {toAccount && (
                                         <div className="flex justify-between px-1">
                                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Saldo Disp:</span>
-                                            <span className="text-xs font-black text-emerald-500">${Number(toAccount.balance).toLocaleString('en-US')}</span>
+                                            <div className="text-right flex flex-col items-end">
+                                                <span className="text-xs font-black text-emerald-500">Bs. {(Number(toAccount.balance) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Eqv: ${ (Number(toAccount.balance) / (exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2 }) } USD</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

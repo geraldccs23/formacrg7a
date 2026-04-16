@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Plus, List, Save, X, Building2, CreditCard, Banknote, Landmark, ShieldCheck, Loader2, Search, ArrowRightCircle, Trash2, Edit2, Users } from 'lucide-react';
+import { TrendingUp, Plus, List, Save, X, Building2, CreditCard, Banknote, Landmark, Wallet, ShieldCheck, Loader2, Search, ArrowRightCircle, Trash2, Edit2, Users } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { dbService } from '../services/dbService';
 import { BankAccount, BranchType, PaymentCondition, Income as IncomeType, Seller, Courier } from '../types';
@@ -77,7 +77,7 @@ export function Income() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
 
-    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia'];
+    const paymentTypes = ['Efectivo $', 'Efectivo Bs', 'Punto de Venta', 'Pago Móvil', 'Transferencia', 'Zelle'];
     const requiresBank = ['Punto de Venta', 'Pago Móvil', 'Transferencia'];
     const cashRegistersByBranch: Record<BranchType, string[]> = {
         'Boleita': ['Fiscal', 'Tecnologia', 'Servientrega'],
@@ -425,7 +425,19 @@ export function Income() {
                                         <span className="text-sm font-black text-[#D40000]">1 USD = {exchangeRate.toLocaleString('es-VE')} Bs</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                     <div className="space-y-2">
+                                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Condición de Pago</label>
+                                        <select 
+                                            value={paymentCondition} 
+                                            onChange={e => setPaymentCondition(e.target.value as any)} 
+                                            className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"
+                                        >
+                                            <option value="Contado">Contado</option>
+                                            <option value="Inicial de Cashea">Inicial de Cashea</option>
+                                            <option value="Credito">Crédito</option>
+                                        </select>
+                                    </div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Vendedor</label><select value={selectedSeller} onChange={e => setSelectedSeller(Number(e.target.value))} className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"><option value="">-- Escoger vendedor --</option>{sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
                                     <div className="space-y-2"><label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Entrega</label><select value={deliveryMethod} onChange={e => { setDeliveryMethod(e.target.value); setSelectedCourier(''); setSelectedAgency(''); }} className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-[#D40000] focus:bg-white rounded-xl font-bold transition-all outline-none text-gray-700"><option value="Retira en Tienda">Retira en Tienda</option><option value="Servientrega">Delivery (Servientrega)</option><option value="Envío Nacional">Envío Nacional</option></select></div>
                                     {deliveryMethod === 'Servientrega' && (
@@ -655,7 +667,7 @@ export function Income() {
                                             {payments.map(p => (
                                                 <div key={p.id} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-2xl shadow-sm ring-1 ring-black/5">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500">{p.type.includes('Efectivo') ? <Banknote size={20} /> : <Landmark size={20} />}</div>
+                                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500">{(p.type.includes('Efectivo') || p.type.includes('Zelle')) ? <Banknote size={20} /> : <Landmark size={20} />}</div>
                                                         <div><p className="text-sm font-black text-gray-800">{p.type}</p><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{p.bankAccountRef || 'Efectivo en Caja'}</p></div>
                                                     </div>
                                                     <div className="flex items-center gap-4"><p className="text-xl font-black text-gray-900">${p.amount.toFixed(2)}</p><button onClick={() => setPayments(payments.filter(x => x.id !== p.id))} className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><X size={16} /></button></div>
