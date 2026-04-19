@@ -295,9 +295,8 @@ export function Expenses() {
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sucursal</label>
                                     <select 
                                         value={branch} 
-                                        disabled={userRole !== 'director' && userRole !== 'supervisor'}
                                         onChange={e => setBranch(e.target.value as BranchType)} 
-                                        className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                                        className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 text-sm font-medium transition-all"
                                     >
                                         <option value="Boleita">Boleita</option>
                                         <option value="Sabana Grande">Sabana Grande</option>

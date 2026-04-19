@@ -399,23 +399,34 @@ export const dbService = {
   },
 
   // Dashboard Metrics
-  async getDashboardMetrics(branch: string, period: { month?: number, year?: number } = {}): Promise<any> {
+  async getDashboardMetrics(branch: string, period: { month?: number, year?: number, startDate?: string, endDate?: string } = {}): Promise<any> {
     const isConsolidated = branch === 'ALL';
     const dbBranch = !isConsolidated ? this._mapBranch(branch) : null;
     
     let startDate: string;
     let endDate: string | undefined;
 
-    if (period.month && period.year) {
-        const start = new Date(period.year, period.month - 1, 1);
-        start.setHours(0, 0, 0, 0);
-        startDate = start.toISOString();
+    if (period.startDate) {
+        const s = new Date(`${period.startDate}T00:00:00`);
+        startDate = s.toISOString();
         
-        const end = new Date(period.year, period.month, 0);
-        end.setHours(23, 59, 59, 999);
-        endDate = end.toISOString();
+        const endDay = period.endDate || period.startDate;
+        const e = new Date(`${endDay}T23:59:59.999`);
+        endDate = e.toISOString();
+    } else if (period.month && period.year) {
+        const s = new Date(period.year, period.month - 1, 1, 0, 0, 0, 0);
+        startDate = s.toISOString();
+        
+        const e = new Date(period.year, period.month, 0, 23, 59, 59, 999);
+        endDate = e.toISOString();
     } else {
-        startDate = new Date().toISOString().split('T')[0];
+        const s = new Date();
+        s.setHours(0, 0, 0, 0);
+        startDate = s.toISOString();
+        
+        const e = new Date();
+        e.setHours(23, 59, 59, 999);
+        endDate = e.toISOString();
     }
 
     // 1. Critical Stock Count (always current)
@@ -428,7 +439,8 @@ export const dbService = {
     const criticalCount = stockData?.filter(s => Number(s.stock) < 7).length || 0;
 
     // 2. Top Products
-    const topRotationStart = period.month ? startDate : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const topRotationStart = (period.month || period.startDate) ? startDate : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
     const topRotQuery = supabase
       .from('v_sales_lines')
       .select('codigo_producto, cantidad, total_usd')

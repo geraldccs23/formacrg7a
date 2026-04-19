@@ -20,6 +20,7 @@ export function Banks() {
     const [banks, setBanks] = useState<Bank[]>([]);
     const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
+    const [allAccounts, setAllAccounts] = useState<BankAccount[]>([]);
 
     const [isExtraordinaryModalOpen, setIsExtraordinaryModalOpen] = useState(false);
     const [extraordinaryAmount, setExtraordinaryAmount] = useState('');
@@ -47,7 +48,7 @@ export function Banks() {
 
     useEffect(() => {
         fetchBanks();
-        fetchUserRoleAndPending();
+        fetchUserRoleAndAllAccounts();
         fetchExchangeRate();
     }, []);
 
@@ -56,27 +57,24 @@ export function Banks() {
         setExchangeRate(rate);
     };
 
-    const fetchUserRoleAndPending = async () => {
+    const fetchUserRoleAndAllAccounts = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
             const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id).single();
             if (data) {
                 setUserRole(data.role);
                 if (data.role === 'director' || data.role === 'supervisor') {
-                    fetchPendingBalances(data.role);
+                    fetchAllAccounts();
                 }
             }
         }
     };
 
-    const fetchPendingBalances = async (role: string) => {
-        if (role !== 'director') return;
-        const { data } = await supabase.from('bank_initial_balances')
-            .select('*, bank_accounts(*)')
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false })
-            .limit(5);
-        if (data) setPendingBalances(data);
+    const fetchAllAccounts = async () => {
+        const { data } = await supabase.from('bank_accounts')
+            .select('*')
+            .order('reference', { ascending: true });
+        if (data) setAllAccounts(data);
     };
 
     useEffect(() => {
@@ -167,7 +165,7 @@ export function Banks() {
             setInitialBalanceAmount('');
             setInitialBalanceAmountBs('');
             alert('Saldo inicial cargado con éxito en Bolívares.');
-            if (userRole === 'director') fetchPendingBalances(userRole);
+            if (userRole === 'director' || userRole === 'supervisor') fetchAllAccounts();
             if (selectedBank) fetchAccounts(selectedBank.code);
         } catch (error) {
             console.error('Error', error);
@@ -179,7 +177,7 @@ export function Banks() {
         try {
             const { error } = await supabase.from('bank_initial_balances').update({ status }).eq('id', id);
             if (error) throw error;
-            fetchPendingBalances(userRole!);
+            if (userRole) fetchAllAccounts();
             if (selectedBank) fetchAccounts(selectedBank.code);
         } catch (error) {
             console.error(error);
@@ -324,25 +322,48 @@ export function Banks() {
                 </div>
             </div>
 
-            {userRole === 'director' && pendingBalances.length > 0 && (
+            {userRole === 'director' && allAccounts.length > 0 && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-4">
-                        <DollarSign size={20} className="text-[#D40000]" />
-                        Saldos Iniciales Recientes (Notificación)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {pendingBalances.map(pb => (
-                            <div key={pb.id} className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col justify-between">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                        <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                            <DollarSign size={20} className="text-[#D40000]" />
+                            Estado de Liquidez Actual (Saldos Consolidados)
+                        </h3>
+                        
+                        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+                            <button 
+                                onClick={() => setSucursalFilter('ALL')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sucursalFilter === 'ALL' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                            >Todas</button>
+                            <button 
+                                onClick={() => setSucursalFilter('Boleita')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sucursalFilter === 'Boleita' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                            >Boleita</button>
+                            <button 
+                                onClick={() => setSucursalFilter('Sabana Grande')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${sucursalFilter === 'Sabana Grande' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                            >S. Grande</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {allAccounts
+                          .filter(acc => sucursalFilter === 'ALL' || acc.sucursal === sucursalFilter)
+                          .map(acc => (
+                            <div key={acc.id} className="bg-white p-4 rounded-xl border border-gray-100 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                                 <div>
                                     <div className="flex justify-between items-start mb-1">
-                                        <div className="text-xs font-bold text-gray-400">Cuenta ID: #{pb.bank_account_id}</div>
-                                        <span className="text-[10px] bg-green-100 text-green-600 px-2 rounded font-black">APLICADO</span>
+                                        <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{acc.bank_code}</div>
+                                        <span className="text-[9px] bg-red-100 text-red-600 px-2 rounded font-black uppercase tracking-tighter">{acc.sucursal}</span>
                                     </div>
-                                    <div className="text-sm font-medium text-gray-600">{pb.bank_accounts?.reference}</div>
-                                    <div className="mt-2 font-black text-xl text-gray-800">${Number(pb.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                                    <div className="text-xs font-bold text-gray-600 truncate">{acc.reference}</div>
+                                    <div className="mt-2 font-black text-xl text-gray-800">
+                                        {Number(acc.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })} <span className="text-xs">Bs.</span>
+                                    </div>
                                 </div>
-                                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                                    <Clock size={12}/> {new Date(pb.created_at).toLocaleString()}
+                                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                    <span>Eqv:</span>
+                                    <span className="text-gray-600">${(Number(acc.balance || 0) / (exchangeRate || 1)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         ))}

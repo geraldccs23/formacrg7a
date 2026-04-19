@@ -33,6 +33,9 @@ export function Dashboard({ userRole }: { userRole?: string }) {
   const [selectedBranch, setSelectedBranch] = useState('ALL');
   const [selectedMonth, setSelectedMonth] = useState<number | ''>(''); 
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [filterMode, setFilterMode] = useState<'PRESET' | 'CUSTOM'>('PRESET');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const [sellerMonth, setSellerMonth] = useState<number | ''>('');
   const [sellerYear, setSellerYear] = useState<number>(new Date().getFullYear());
@@ -53,17 +56,21 @@ export function Dashboard({ userRole }: { userRole?: string }) {
 
   useEffect(() => {
     loadDashboard();
-    loadSellerMetrics();
-  }, [selectedBranch, selectedMonth, selectedYear]);
+  }, [selectedBranch, selectedMonth, selectedYear, filterMode, startDate, endDate]);
 
   useEffect(() => {
     loadSellerMetrics();
-  }, [sellerMonth, sellerYear, selectedBranch]);
+  }, [selectedBranch, sellerMonth, sellerYear, filterMode, startDate, endDate]);
 
   async function loadSellerMetrics() {
     setLoadingSellers(true);
     try {
-        const period = sellerMonth ? { month: Number(sellerMonth), year: sellerYear } : {};
+        let period: any = {};
+        if (filterMode === 'CUSTOM' && startDate) {
+          period = { startDate, endDate: endDate || startDate };
+        } else {
+          period = sellerMonth ? { month: Number(sellerMonth), year: sellerYear } : {};
+        }
         const data = await dbService.getDashboardMetrics(selectedBranch, period);
         setSellerMetrics(data.salesBySeller || []);
         setSellerRawData(data.rawIncomes || []);
@@ -74,7 +81,13 @@ export function Dashboard({ userRole }: { userRole?: string }) {
   async function loadDashboard() {
     setLoading(true);
     try {
-      const period = selectedMonth ? { month: Number(selectedMonth), year: selectedYear } : {};
+      let period: any = {};
+      if (filterMode === 'CUSTOM' && startDate) {
+        period = { startDate, endDate: endDate || startDate };
+      } else {
+        period = selectedMonth ? { month: Number(selectedMonth), year: selectedYear } : {};
+      }
+
       const [m, s] = await Promise.all([
         dbService.getDashboardMetrics(selectedBranch, period),
         dbService.getSyncLogs()
@@ -104,30 +117,58 @@ export function Dashboard({ userRole }: { userRole?: string }) {
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Dashboard <span className="text-[#D40000]">RG7</span></h2>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${selectedMonth ? 'bg-orange-500' : 'bg-green-500'}`}></span>
-            Vista: {selectedMonth ? `${months.find(m => m.id === selectedMonth)?.name} ${selectedYear}` : 'Hoy (Tiempo Real)'}
+            <span className={`w-2 h-2 rounded-full ${filterMode === 'CUSTOM' ? 'bg-purple-500' : selectedMonth ? 'bg-orange-500' : 'bg-green-500'}`}></span>
+            Vista: {filterMode === 'CUSTOM' ? (startDate ? `${startDate} / ${endDate || startDate}` : 'Seleccione Rango') : (selectedMonth ? `${months.find(m => m.id === selectedMonth)?.name} ${selectedYear}` : 'Hoy (Tiempo Real)')}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* Month/Year Filter */}
+          {/* Period Filter */}
           <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
-            <select 
-              value={selectedMonth} 
-              onChange={e => setSelectedMonth(e.target.value === '' ? '' : Number(e.target.value))}
-              className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none px-2 py-1 text-gray-600 focus:text-[#D40000] cursor-pointer"
-            >
-              <option value="">-- Hoy --</option>
-              {months.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            {filterMode === 'PRESET' ? (
+              <>
+                <select 
+                  value={selectedMonth} 
+                  onChange={e => setSelectedMonth(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none px-2 py-1 text-gray-600 focus:text-[#D40000] cursor-pointer"
+                >
+                  <option value="">-- Hoy --</option>
+                  {months.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <div className="w-px h-4 bg-gray-200"></div>
+                <select 
+                  value={selectedYear} 
+                  onChange={e => setSelectedYear(Number(e.target.value))}
+                  className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none px-2 py-1 text-gray-600 focus:text-[#D40000] cursor-pointer"
+                >
+                  {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 px-2">
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="bg-transparent text-[10px] font-black uppercase outline-none text-gray-600 focus:text-[#D40000]"
+                />
+                <span className="text-[10px] font-black text-gray-300">/</span>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="bg-transparent text-[10px] font-black uppercase outline-none text-gray-600 focus:text-[#D40000]"
+                />
+              </div>
+            )}
             <div className="w-px h-4 bg-gray-200"></div>
-            <select 
-              value={selectedYear} 
-              onChange={e => setSelectedYear(Number(e.target.value))}
-              className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none px-2 py-1 text-gray-600 focus:text-[#D40000] cursor-pointer"
+            <button 
+              onClick={() => setFilterMode(filterMode === 'PRESET' ? 'CUSTOM' : 'PRESET')}
+              className={`p-1.5 rounded-lg transition-colors ${filterMode === 'CUSTOM' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:bg-gray-100'}`}
+              title={filterMode === 'PRESET' ? "Cambiar a rango personalizado" : "Cambiar a filtros rápidos"}
             >
-              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+              <Target size={14} />
+            </button>
           </div>
 
           <div className="flex bg-gray-50 p-1 rounded-2xl gap-1 overflow-x-auto no-scrollbar">
@@ -283,7 +324,13 @@ export function Dashboard({ userRole }: { userRole?: string }) {
                 </select>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto relative min-h-[200px]">
+            {loadingSellers && (
+                <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all">
+                    <RefreshCw className="animate-spin text-[#D40000]" size={24} />
+                    <span className="ml-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cargando...</span>
+                </div>
+            )}
             <table className="w-full border-collapse">
                 <thead>
                     <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -294,12 +341,7 @@ export function Dashboard({ userRole }: { userRole?: string }) {
                         <th className="py-4 px-8 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Estado</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 relative">
-                    {loadingSellers && (
-                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10">
-                            <RefreshCw className="animate-spin text-[#D40000]" size={20} />
-                        </div>
-                    )}
+                <tbody className="divide-y divide-gray-50">
                     {sellerMetrics.map((s: any, i: number) => (
                         <tr 
                             key={i} 
