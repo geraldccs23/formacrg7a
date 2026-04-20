@@ -18,6 +18,11 @@ export interface Supplier {
   supplier_code: string;
   supplier_name: string;
   is_active: boolean;
+  rif?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contact_name?: string;
   avgLeadTime?: number;
   fillRate?: number;
   punctuality?: number;
